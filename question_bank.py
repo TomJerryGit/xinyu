@@ -37,7 +37,7 @@ def load_prebuilt(category):
                 "type": row.get("type", "选择"), "question": row["question"],
                 "options": row.get("options", []), "answer": int(row.get("answer", 0)),
                 "explanation": row.get("explanation", ""), "id": row.get("id", ""),
-                "classic_id": row.get("classic_id", ""),
+                "classic_id": row.get("classic_id", ""), "cognitive": row.get("cognitive", "识记"),
             })
         except (KeyError, TypeError, ValueError):
             continue
@@ -53,7 +53,7 @@ def export_prebuilt(conn):
     for category in categories:
         rows = []
         for row in conn.execute(
-            """SELECT id,classic_id,type,question,options,answer,explanation
+            """SELECT id,classic_id,type,question,options,answer,explanation,cognitive
                FROM question_bank WHERE category=? ORDER BY id""",
             (category,),
         ):
@@ -65,6 +65,7 @@ def export_prebuilt(conn):
                 "id": row["id"], "classic_id": row["classic_id"], "type": row["type"],
                 "question": row["question"], "options": options, "answer": row["answer"],
                 "explanation": row["explanation"],
+                "cognitive": row["cognitive"] if "cognitive" in row.keys() else "识记",
             })
         path = os.path.join(BANK_DIR, f"{_safe_name(category)}.json")
         with open(path, "w", encoding="utf-8") as handle:
@@ -121,7 +122,7 @@ def build_bank(conn, limit=0, rebuild=False, category=""):
         seen.add(qid)
         rows.append((
             qid, work["id"], work["category"] or "", work["dynasty"] or "", 1, "选择",
-            question, json.dumps(options, ensure_ascii=False), options.index(correct), explanation,
+            question, json.dumps(options, ensure_ascii=False), options.index(correct), explanation, "识记",
         ))
 
     for work in works:
@@ -138,8 +139,8 @@ def build_bank(conn, limit=0, rebuild=False, category=""):
 
     conn.executemany(
         """INSERT OR REPLACE INTO question_bank
-           (id,classic_id,category,dynasty,difficulty,type,question,options,answer,explanation,source,verified)
-           VALUES (?,?,?,?,?,?,?,?,?,?,'rule',1)""",
+           (id,classic_id,category,dynasty,difficulty,type,question,options,answer,explanation,cognitive,source,verified)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?, 'rule',1)""",
         rows,
     )
     conn.commit()
@@ -166,6 +167,7 @@ def sample_bank(conn, category="", count=5):
             "type": row["type"], "question": row["question"], "options": options,
             "answer": int(row["answer"]), "explanation": row["explanation"],
             "id": row["id"], "classic_id": row["classic_id"],
+            "cognitive": row["cognitive"] if "cognitive" in row.keys() else "识记",
         })
     return questions
 

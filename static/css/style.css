@@ -1059,3 +1059,27 @@ body.printing #printRoot h2 { font-size: 15pt; margin-top: 18px; border-bottom: 
 
 body.printing > *:not(#printRoot) { display: none !important; }
 body.printing #printRoot { display: block !important; }
+
+/* ---------- 教学：素读/对照/全解、点词、互文 ---------- */
+.word-note {
+    border-bottom: 1px dashed var(--accent);
+    cursor: pointer;
+    color: inherit;
+}
+.word-note:hover { color: var(--accent); }
+.word-tip {
+    position: fixed; z-index: 1500; max-width: 320px;
+    background: var(--card); color: var(--text);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 12px; box-shadow: var(--shadow-lg); font-size: 13px; line-height: 1.7;
+}
+.word-tip.hidden { display: none; }
+.teach-layer-read .line-translation,
+.teach-layer-read .line-detail,
+.teach-layer-read #teachAnalysis,
+.teach-layer-read #teachExercises,
+.teach-layer-read #teachHomework,
+.teach-layer-read #teachIntertext { display: none !important; }
+.teach-layer-compare #teachAnalysis { display: none !important; }
+.teach-layer-full .line-translation,
+.teach-layer-full .line-detail { display: block; }

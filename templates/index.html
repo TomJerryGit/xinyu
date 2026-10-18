@@ -243,6 +243,12 @@
                     <option value="standard" selected>中级</option>
                     <option value="advanced">高级</option>
                 </select>
+                <label>阅读</label>
+                <select id="teachLayer" onchange="applyTeachingLayer()">
+                    <option value="read">素读</option>
+                    <option value="compare" selected>对照</option>
+                    <option value="full">全解</option>
+                </select>
                 <button class="primary-btn" onclick="startTeaching()">开始教学</button>
                 <button onclick="regenerateTeachingPlan()">重新生成</button>
                 <button onclick="openTeachingEditor()">编辑教案</button>
@@ -264,6 +270,8 @@
             <div id="teachAnalysis" class="tab-content-sub"></div>
             <div id="teachExercises" class="tab-content-sub"></div>
             <div id="teachHomework" class="tab-content-sub"></div>
+            <div id="teachIntertext" class="tab-content-sub"></div>
+            <div id="wordTip" class="word-tip hidden"></div>
             <div id="printSheet" class="print-sheet"></div>
             <div id="teachEditor" class="teach-editor hidden">
                 <div class="teach-editor-card">
@@ -309,6 +317,12 @@
                 <select id="quizDifficulty"><option value="1">初级</option><option value="2">中级</option><option value="3">高级</option></select>
             </div>
             <div class="form-row">
+                <label>蓝图</label>
+                <select id="quizBlueprint">
+                    <option value="basic" selected>基础卷（识记）</option>
+                    <option value="ability">能力卷（理解+分析）</option>
+                    <option value="comprehensive">综合卷（分析+评价）</option>
+                </select>
                 <label>数量</label>
                 <select id="quizCount"><option>5</option><option>10</option><option>15</option></select>
             </div>
@@ -367,6 +381,11 @@
             <section class="card">
                 <header class="card-head"><h2>运行指标</h2><button class="ghost-btn" onclick="loadMetrics()">刷新</button></header>
                 <div id="metricsPanel" class="list-stack"><p class="muted">点击「运行指标」加载</p></div>
+            </section>
+
+            <section class="card">
+                <header class="card-head"><h2>AI 审核队列</h2><button class="ghost-btn" onclick="loadAiReview()">刷新</button></header>
+                <div id="aiReviewPanel" class="list-stack"><p class="muted">点击刷新加载待审核内容</p></div>
             </section>
 
             <div class="dash-columns">

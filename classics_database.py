@@ -23,6 +23,13 @@ class ClassicsDatabase:
         self.conn.execute("PRAGMA synchronous=NORMAL")
         self.conn.execute("PRAGMA foreign_keys=ON")
         self._create_tables()
+        try:
+            columns = {row[1] for row in self.conn.execute("PRAGMA table_info(question_bank)")}
+            if "cognitive" not in columns:
+                self.conn.execute("ALTER TABLE question_bank ADD COLUMN cognitive TEXT DEFAULT '识记'")
+                self.conn.commit()
+        except sqlite3.Error:
+            pass
         self._migrator = Migrator(self.conn, db_path, "classics")
         self._migrator.apply(1, self._migration_v1, make_backup=self._has_data())
         self._create_indexes()
@@ -68,8 +75,19 @@ class ClassicsDatabase:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (classic_id, level)
             );
-            CREATE TABLE IF NOT EXISTS teaching_plan_versions (
+            CREATE TABLE IF NOT EXISTS ai_review_queue (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
+                kind TEXT NOT NULL,
+                classic_id TEXT DEFAULT '',
+                payload TEXT NOT NULL,
+                status TEXT DEFAULT 'pending',
+                reviewer TEXT DEFAULT '',
+                notes TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                reviewed_at TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_review_status ON ai_review_queue(status);
+            CREATE TABLE IF NOT EXISTS teaching_plan_versions (                id INTEGER PRIMARY KEY AUTOINCREMENT,
                 classic_id TEXT NOT NULL,
                 level TEXT NOT NULL,
                 profile TEXT DEFAULT '',
@@ -89,6 +107,7 @@ class ClassicsDatabase:
                 options TEXT DEFAULT '[]',
                 answer TEXT DEFAULT '',
                 explanation TEXT DEFAULT '',
+                cognitive TEXT DEFAULT '识记',
                 source TEXT DEFAULT 'rule',
                 verified INTEGER DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -497,6 +516,41 @@ class ClassicsDatabase:
             (classic_id, level, profile or ""),
         ).fetchall()
         return [dict(row) for row in rows]
+
+    def enqueue_ai_review(self, kind, classic_id, payload):
+        cursor = self.conn.execute(
+            "INSERT INTO ai_review_queue (kind, classic_id, payload) VALUES (?, ?, ?)",
+            (kind, classic_id or "", json.dumps(payload, ensure_ascii=False)),
+        )
+        self.conn.commit()
+        return cursor.lastrowid
+
+    def list_ai_review(self, status="pending", limit=50):
+        rows = self.conn.execute(
+            """SELECT id,kind,classic_id,payload,status,reviewer,notes,created_at
+               FROM ai_review_queue WHERE status=? ORDER BY id DESC LIMIT ?""",
+            (status, int(limit)),
+        ).fetchall()
+        result = []
+        for row in rows:
+            item = dict(row)
+            try:
+                item["payload"] = json.loads(item["payload"])
+            except (TypeError, ValueError):
+                item["payload"] = {}
+            result.append(item)
+        return result
+
+    def review_ai_item(self, review_id, decision, reviewer="", notes=""):
+        if decision not in ("approved", "rejected"):
+            return False
+        self.conn.execute(
+            """UPDATE ai_review_queue SET status=?, reviewer=?, notes=?, reviewed_at=CURRENT_TIMESTAMP
+               WHERE id=?""",
+            (decision, reviewer or "", notes or "", int(review_id)),
+        )
+        self.conn.commit()
+        return True
 
     def update_verified(self, classic_id, verified=1):
         self.conn.execute(

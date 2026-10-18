@@ -45,6 +45,9 @@ const state = {
     currentJobId: null,
     uiState: {},
     verifiedOnly: false,
+    wordNotes: null,
+    wordAllusions: [],
+    intertext: [],
 };
 
 /* ---------------- 基础工具 ---------------- */
@@ -374,6 +377,7 @@ function switchNav(moduleName) {
         updateApiStatus();
         loadSettingsExtras();
     }
+    if (moduleName === 'data') loadAiReview();
     if (moduleName === 'data') loadBackups();
 }
 
@@ -951,6 +955,84 @@ async function startTeaching(force = false) {
     renderTeachingPlan(data);
 }
 
+function teachingLinesHtml(lines) {
+    let html = '<h4>逐句精讲</h4>';
+    if (!lines.length) return html + '<p class="muted">暂无</p>';
+    const notes = (state.wordNotes || []).slice().sort((a, b) => (b.term || '').length - (a.term || '').length);
+    lines.forEach((line) => {
+        const detail = [line.keywords && `关键词：${line.keywords}`, line.rhetoric && `修辞：${line.rhetoric}`, line.structure && `结构：${line.structure}`]
+            .filter(Boolean).join('　');
+        html += `<div class="teaching-line"><b>${decorateLine(line.original || '', notes)}</b>
+            <span class="line-translation">${esc(line.translation || '译文待补充')}</span>
+            ${detail ? `<small class="line-detail muted">${esc(detail)}</small>` : ''}</div>`;
+    });
+    return html;
+}
+
+function decorateLine(text, notes) {
+    let html = esc(text);
+    notes.forEach((item) => {
+        if (!item.term) return;
+        const term = esc(item.term);
+        if (!html.includes(term) || html.includes(`data-term="${term}"`)) return;
+        const replacement = `<span class="word-note" data-term="${term}" data-note="${esc(item.note || '')}" data-source="${esc(item.source || '')}">${term}</span>`;
+        html = html.split(term).join(replacement);
+    });
+    return html;
+}
+
+async function loadWordNotes() {
+    if (state.wordNotes) return;
+    const data = await guarded('加载点注', () => callApi('get_word_notes'), { toastError: false });
+    if (!data) return;
+    const notes = Array.isArray(data.words) ? data.words.slice() : [];
+    (data.allusions || []).forEach((item) => {
+        (item.keywords || []).forEach((term) => notes.push({
+            term, note: `典故：${item.name}。出处：${item.source || '待考'}`, source: '典故',
+        }));
+    });
+    state.wordNotes = notes;
+    state.wordAllusions = data.allusions || [];
+    if (state.teaching) {
+        const lines = (state.teaching.line_teaching && state.teaching.line_teaching.lines) || [];
+        if ($('teachLines')) $('teachLines').innerHTML = teachingLinesHtml(lines);
+    }
+}
+
+function showWordTip(target) {
+    const tip = $('wordTip');
+    if (!tip || !target) return;
+    const note = target.dataset.note || '暂无注释';
+    const source = target.dataset.source ? `<br><small>${esc(target.dataset.source)}</small>` : '';
+    tip.innerHTML = `<b>${esc(target.dataset.term || '')}</b>：${esc(note)}${source}`;
+    const rect = target.getBoundingClientRect();
+    tip.style.left = `${Math.max(12, rect.left)}px`;
+    tip.style.top = `${rect.bottom + 8}px`;
+    tip.classList.remove('hidden');
+}
+
+function applyTeachingLayer() {
+    const layer = $('teachLayer') ? $('teachLayer').value : 'compare';
+    document.body.classList.remove('teach-layer-read', 'teach-layer-compare', 'teach-layer-full');
+    document.body.classList.add(`teach-layer-${layer}`);
+}
+
+async function loadIntertext(data) {
+    const cid = (data && data.id) || ($('teachArtSelect') ? $('teachArtSelect').value : '');
+    if (!cid) return;
+    const links = await guarded('加载互文', () => callApi('get_intertext', cid), { toastError: false });
+    state.intertext = Array.isArray(links) ? links : [];
+    if ($('teachIntertext')) {
+        if (!state.intertext.length) {
+            $('teachIntertext').innerHTML = '';
+            return;
+        }
+        $('teachIntertext').innerHTML = '<h4>互文网络</h4>' + state.intertext.map((item) =>
+            `<div class="teaching-line"><b>${esc(item.title || '')}</b> <span>${esc(item.author || '')}</span><small class="muted">${esc(item.relation || '')}${item.reason ? ' · ' + esc(item.reason) : ''}</small></div>`
+        ).join('');
+    }
+}
+
 function renderTeachingPlan(data) {
     if (!data) return;
     state.teaching = data;
@@ -976,17 +1058,14 @@ function renderTeachingPlan(data) {
         $('teachBackground').innerHTML = `<h4>背景溯源</h4><p>${esc(analysis.background || '暂无')}</p>`;
     }
     const lines = (data.line_teaching && data.line_teaching.lines) || [];
-    let linesHtml = '<h4>逐句精讲</h4>';
-    if (lines.length) {
-        lines.forEach((line) => {
-            const detail = [line.keywords && `关键词：${line.keywords}`, line.rhetoric && `修辞：${line.rhetoric}`, line.structure && `结构：${line.structure}`]
-                .filter(Boolean).join('　');
-            linesHtml += `<div class="teaching-line"><b>${esc(line.original)}</b><span>${esc(line.translation || '译文待补充')}</span>${detail ? `<small class="muted">${esc(detail)}</small>` : ''}</div>`;
-        });
-    } else {
-        linesHtml += '<p class="muted">暂无</p>';
-    }
-    if ($('teachLines')) $('teachLines').innerHTML = linesHtml;
+    if ($('teachLines')) $('teachLines').innerHTML = teachingLinesHtml(lines);
+    if ($('teachLines')) $('teachLines').onclick = (event) => {
+        const target = event.target.closest('.word-note');
+        if (target) showWordTip(target);
+    };
+    applyTeachingLayer();
+    loadWordNotes();
+    loadIntertext(data);
 
     let analysisHtml = `<h4>赏析</h4><p>${esc(analysis.text_analysis || '暂无')}</p>`;
     const extras = [['意境', analysis.artistic], ['格律', analysis.rhythm], ['文化', analysis.culture], ['教学建议', analysis.teaching]];
@@ -1236,6 +1315,7 @@ async function startQuiz() {
     const category = $('quizCat') ? $('quizCat').value : '唐诗';
     const difficulty = parseInt(($('quizDifficulty') || {}).value, 10) || 1;
     const count = parseInt(($('quizCount') || {}).value, 10) || 5;
+    const blueprint = ($('quizBlueprint') || {}).value || 'basic';
     const select = $('quizTypes');
     const types = select
         ? Array.from(select.selectedOptions).map((option) => option.value).join(',') || '选择'
@@ -1244,14 +1324,15 @@ async function startQuiz() {
     if (!container) return;
     container.innerHTML = '<p class="muted">正在生成题目...</p>';
     showLoading('quizContent', '组卷中...');
-    const result = await guarded('生成试卷', () => callApi('generate_quiz', category, difficulty, count, types), { toastError: false });
+    const result = await guarded('生成试卷', () => callApi('generate_quiz', category, difficulty, count, types, blueprint), { toastError: false });
     hideLoading('quizContent');
     if (!result || !Array.isArray(result.questions) || !result.questions.length) {
         container.innerHTML = '<p class="error-text">未能生成题目，请更换分类后重试。</p>';
         return;
     }
     state.quiz = result;
-    const sourceText = result.source === 'bank' ? '本地题库' : 'AI/规则';
+    const sourceText = result.source === 'bank+rubric' ? '本地题库 + Rubric'
+        : (result.source === 'bank' ? '本地题库' : 'AI/规则');
     let html = `<div class="result-meta">组卷来源：${sourceText} · ${result.questions.length} 题</div>`;
     result.questions.forEach((question, index) => {
         html += `<div class="quiz-question"><p><b>${index + 1}. [${esc(question.type)}]</b> ${esc(question.question)}</p>`;
@@ -1291,7 +1372,10 @@ async function submitQuiz() {
     const answers = collectAnswers();
     const result = await guarded('批改', () => callApi('check_quiz_answer', JSON.stringify(state.quiz), JSON.stringify(answers)));
     if (!result) return;
-    if ($('quizScore')) $('quizScore').textContent = `得分：${result.score} 分（${result.correct}/${result.total}）`;
+    if ($('quizScore')) {
+        const pendingText = Array.isArray(result.pending) && result.pending.length ? `，开放题 ${result.pending.length} 道待评分` : '';
+        $('quizScore').textContent = `客观题得分：${result.score} 分（${result.correct}/${result.auto_total || 0}）${pendingText}`;
+    }
     if (Array.isArray(result.wrong) && result.wrong.length) {
         let html = '<h4>错题解析</h4>';
         result.wrong.forEach((wrong) => {
@@ -1312,6 +1396,17 @@ async function submitQuiz() {
         });
         safeSet('wrongBook', state.wrongBook.slice(-100));
         persistUiState({ wrong_book: state.wrongBook.slice(-100) });
+        if ($('quizContent')) $('quizContent').insertAdjacentHTML('beforeend', html);
+    }
+    if (Array.isArray(result.pending) && result.pending.length) {
+        let html = '<h4>开放题：待教师按量规评分</h4>';
+        result.pending.forEach((item) => {
+            html += `<div class="quiz-question"><b>第 ${item.index + 1} 题</b> ${esc(item.question || '')}`;
+            (item.rubric || []).forEach((rubric) => {
+                html += `<br><span class="muted">${esc(rubric.dimension)}（${rubric.points} 分）：${esc(rubric.criteria)}</span>`;
+            });
+            html += `<br><span class="muted">参考思路：${esc(item.answer_hint || '')}</span></div>`;
+        });
         if ($('quizContent')) $('quizContent').insertAdjacentHTML('beforeend', html);
     }
     const history = safeGet('quizHistory', []);
@@ -1793,6 +1888,31 @@ function closeClassicsPanel() {
 }
 
 /* ---------------- 数据面板 ---------------- */
+async function loadAiReview() {
+    const panel = $('aiReviewPanel');
+    if (!panel) return;
+    const rows = await guarded('加载审核队列', () => callApi('get_ai_review_queue', 'pending'), { toastError: false });
+    if (!Array.isArray(rows) || !rows.length) {
+        panel.innerHTML = '<p class="muted">暂无待审核 AI 内容</p>';
+        return;
+    }
+    panel.innerHTML = rows.map((row) => {
+        const payload = row.payload || {};
+        return `<div class="backup-row"><div><b>${esc(row.kind)}</b> · ${esc(payload.title || '')}<br>
+            <span class="muted">${esc((payload.objectives || []).join(' / ')).slice(0, 120)}</span></div>
+            <div class="action-row"><button onclick="reviewAiItem(${row.id},'approved')">通过</button>
+            <button onclick="reviewAiItem(${row.id},'rejected')">拒绝</button></div></div>`;
+    }).join('');
+}
+
+async function reviewAiItem(id, decision) {
+    const result = await guarded('审核 AI 内容', () => callApi('review_ai_queue', String(id), decision, 'teacher', ''));
+    if (result && result.success) {
+        showToast(decision === 'approved' ? '已通过' : '已拒绝', 'success');
+        loadAiReview();
+    }
+}
+
 async function loadAiBudget() {
     const panel = $('budgetPanel');
     if (!panel) return;

@@ -1136,9 +1136,39 @@ class TeachingMixin:
                 return None
             data["source"] = "ai"
             data["quality"] = "ai"
+            try:
+                self.classics_db.enqueue_ai_review("teaching_plan", item.get("id", ""), {
+                    "title": item.get("title", ""), "author": item.get("author", ""),
+                    "level": level, "profile": profile,
+                    "objectives": data.get("objectives", []), "summary": str(data.get("teaching", ""))[:200],
+                })
+            except Exception:
+                pass
             return data
         except Exception:
             return None
+
+    def get_ai_review_queue(self, status: str = "pending") -> List[Dict]:
+        return self.classics_db.list_ai_review(status)
+
+    def review_ai_queue(self, review_id: str, decision: str, reviewer: str = "", notes: str = "") -> Dict:
+        ok = self.classics_db.review_ai_item(review_id, decision, reviewer, notes)
+        return {"success": ok, "message": "已审核" if ok else "审核参数错误"}
+
+    def get_intertext(self, classic_id: str) -> List[Dict]:
+        try:
+            payload = safe_json_load(resource_path("resources", "intertext.json"), {})
+            links = payload.get("links", {}) if isinstance(payload, dict) else {}
+            return links.get(classic_id, []) if isinstance(links, dict) else []
+        except Exception:
+            return []
+
+    def get_word_notes(self, classic_id: str = "") -> Dict:
+        """常用词/典故点注；不依赖作品，可离线。"""
+        words = safe_json_load(resource_path("resources", "word_notes.json"), [])
+        allusions = safe_json_load(resource_path("resources", "allusion_db.json"), [])
+        return {"words": words if isinstance(words, list) else [],
+                "allusions": allusions if isinstance(allusions, list) else []}
 
     def get_teaching_plan(self, classic_id: str, level: str = "standard", profile: str = "") -> Dict:
         """返回预置/缓存教案；没有则按需生成离线骨架。"""
@@ -1225,6 +1255,7 @@ class TeachingMixin:
         plan["title"], plan["author"], plan["dynasty"] = item["title"], item["author"], item["dynasty"]
         plan["content"], plan["level"], plan["category"] = item["content"], level, item.get("category", "")
         plan["profile"] = profile or ""
+        plan["id"] = item["id"]
         cache_level = level if not profile else f"{level}|{profile}"
         self.classics_db.save_teaching_plan(item["id"], cache_level, plan, plan.get("source", "ai"))
         return plan
@@ -1259,11 +1290,68 @@ class TeachingMixin:
         tick(100, "教案完成")
         return plan
 
-    def generate_quiz(self, category: str = "唐诗", difficulty: int = 1, count: int = 5, types: str = "选择") -> Dict:
+    def _open_quiz_questions(self, category: str, count: int) -> List[Dict]:
+        """从教案/原文生成带量规的开放题；不自动判分。"""
+        if count <= 0:
+            return []
+        rows = self.classics_db.conn.execute(
+            """SELECT c.id,c.title,c.author,c.category,t.data
+               FROM classics c LEFT JOIN teaching_plans t
+               ON t.classic_id=c.id AND t.level='standard'
+               WHERE c.category=? AND c.verified=1
+               ORDER BY RANDOM() LIMIT ?""",
+            (category, max(1, count * 3)),
+        ).fetchall()
+        questions = []
+        seen = set()
+        for row in rows:
+            if len(questions) >= count:
+                break
+            data = {}
+            try:
+                data = json.loads(row["data"]) if row["data"] else {}
+            except (TypeError, ValueError):
+                data = {}
+            exercise = None
+            exercise_data = data.get("exercises") if isinstance(data.get("exercises"), dict) else {}
+            for item in (exercise_data or {}).get("exercises", []):
+                if isinstance(item, dict) and item.get("type") == "简答":
+                    exercise = item
+                    break
+            if exercise:
+                question = exercise.get("question", "")
+                answer = exercise.get("answer", "")
+            else:
+                question = f"结合《{row['title']}》原文，分析一个关键意象及其作用。"
+                answer = "参考：指出意象，引用原文，说明情感或结构作用。"
+            if not question or question in seen:
+                continue
+            seen.add(question)
+            questions.append({
+                "type": "简答",
+                "question": question,
+                "options": [],
+                "answer": answer,
+                "explanation": "开放题，按量规人工评分。",
+                "rubric": [
+                    {"dimension": "内容理解", "points": 40, "criteria": "准确引用原文，理解无误"},
+                    {"dimension": "分析深度", "points": 40, "criteria": "指出手法/结构/情感并说明关系"},
+                    {"dimension": "语言表达", "points": 20, "criteria": "条理清楚，术语准确"},
+                ],
+                "auto_gradable": False,
+                "cognitive": "分析",
+                "classic_id": row["id"],
+            })
+        return questions
+
+    def generate_quiz(self, category: str = "唐诗", difficulty: int = 1, count: int = 5, types: str = "选择", blueprint: str = "basic") -> Dict:
         self.engine.current_task = "quiz"
-        cache_key = f"quiz_{category}_{difficulty}_{count}_{types}"
+        cache_key = f"quiz_{category}_{difficulty}_{count}_{types}_{blueprint}"
         if cache_key in self.teaching_cache:
             return self.teaching_cache[cache_key]
+        blueprint = blueprint if blueprint in ("basic", "ability", "comprehensive") else "basic"
+        objective_count = count if blueprint == "basic" else max(1, count // 2)
+        open_count = 0 if blueprint == "basic" else max(0, count - objective_count)
         # 基础卷优先走本地题库；只有“新题/鉴赏”等显式需求才交给 AI
         type_set = {part.strip() for part in str(types or "选择").split(",") if part.strip()}
         if type_set == {"选择"} and int(difficulty or 1) <= 1:
@@ -1271,15 +1359,17 @@ class TeachingMixin:
                 from question_bank import build_bank, load_prebuilt, sample_bank
 
                 prebuilt = load_prebuilt(category)
-                if len(prebuilt) >= int(count):
+                if blueprint == "basic" and len(prebuilt) >= int(count):
                     bank = random.sample(prebuilt, int(count))
-                    result = {"questions": bank, "source": "bank", "bank_total": len(prebuilt)}
+                    result = {"questions": bank, "source": "bank", "bank_total": len(prebuilt), "blueprint": blueprint}
                     self.teaching_cache[cache_key] = result
                     return result
                 build_bank(self.classics_db.conn, category=category)
-                bank = sample_bank(self.classics_db.conn, category, count)
-                if len(bank) >= int(count):
-                    result = {"questions": bank, "source": "bank", "bank_total": len(bank)}
+                bank = sample_bank(self.classics_db.conn, category, objective_count)
+                opened = self._open_quiz_questions(category, open_count) if open_count else []
+                if len(bank) + len(opened) >= int(count):
+                    result = {"questions": bank + opened, "source": "bank+rubric" if opened else "bank",
+                              "blueprint": blueprint, "bank_total": len(bank)}
                     self.teaching_cache[cache_key] = result
                     return result
             except Exception:
@@ -1381,7 +1471,14 @@ class TeachingMixin:
         answers = json.loads(answers_json)
         correct = 0
         wrong = []
+        pending = []
+        auto_total = 0
         for i, q in enumerate(questions.get("questions", [])):
+            if q.get("auto_gradable") is False or q.get("type") in ("简答", "鉴赏"):
+                pending.append({"index": i, "question": q.get("question", ""), "rubric": q.get("rubric", []),
+                                "answer_hint": q.get("answer", "")})
+                continue
+            auto_total += 1
             if q["type"] in ["填空", "默写"]:
                 if i < len(answers) and str(answers[i]) == str(q["answer"]):
                     correct += 1
@@ -1392,7 +1489,9 @@ class TeachingMixin:
                     correct += 1
                 else:
                     wrong.append({"index": i, "correct": q["answer"], "explanation": q.get("explanation", "")})
-        return {"total": len(questions.get("questions", [])), "correct": correct, "wrong": wrong, "score": round(correct / max(len(questions.get("questions", [])), 1) * 100)}
+        return {"total": len(questions.get("questions", [])), "auto_total": auto_total,
+                "correct": correct, "wrong": wrong, "pending": pending,
+                "score": round(correct / max(auto_total, 1) * 100)}
 
     def get_daily_task(self) -> Dict:
         item = self.classics_db.get_random()
