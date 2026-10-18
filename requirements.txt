@@ -1,9 +1,6 @@
-# -*- coding: utf-8 -*-
-"""心语运行依赖。
-
-安装：``pip install -r requirements.txt``
-本地离线模型为可选能力，如需启用请额外安装 ``llama-cpp-python``。
-"""
+# 心语运行依赖
+# 安装：pip install -r requirements.txt
+# 本地离线模型为可选能力，如需启用请额外安装 llama-cpp-python。
 
 pywebview>=5.0
 openai>=1.0
