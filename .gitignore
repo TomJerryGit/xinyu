@@ -9,6 +9,11 @@ dist/
 *.spec
 exports/
 data/
+backups/
+evals/results/
+1.创建目录说明/
+.pytest.lock
+.xinyu.lock
 spike/tauri/src-tauri/sidecar/
 spike/tauri/src-tauri/target/
 *.log
