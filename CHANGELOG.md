@@ -1,0 +1,164 @@
+# 心语 更新日志
+
+## V9.3.0（2026-10-18）· 阶段 1
+
+### 启动性能
+- 新增启动打点（`perf.py`）：记录路径、模块导入、API 初始化、窗口创建、窗口加载。
+- AI 引擎改为惰性初始化（`LazyEngine`）：`import openai` 与客户端创建移出首屏。
+- `cryptography`、`PIL`、`pypinyin` 改为按需导入；密钥文件不再在导入期创建。
+- 源码启动打点：**10.3s → 3.2s**；打包版窗口实际可见：**12.2s → 6.1s**。
+- 新增 `docs/STARTUP.md`，记录耗时分布与 Tauri/延迟加载评估。
+
+### 作业系统
+- 新增 `jobs.py`：SQLite 持久化作业、2 个后台 worker、进度、取消、失败记录、
+  重启后中断恢复。
+- 教学、扩充、预览导入改为作业执行；前端轮询进度、显示「取消任务」按钮。
+- 教学/扩充支持阶段 checkpoint；失败/中断后点「续跑」从上次阶段继续。
+- 新增 API：`submit_job / get_job / cancel_job / retry_job / list_jobs`。
+- 失败/中断/取消的任务可在「运行指标」里重试。
+
+### Tauri / Web 外壳 spike
+- 新增 `sidecar_server.py`：无界面 HTTP sidecar，带 token、`/health`、`/api/<method>`。
+- 新增 `web_shim.js`：浏览器/Tauri 下兼容 `pywebview.api`，复用现有 HTML/JS。
+- 新增 `spike/tauri/` Tauri 2 脚手架（splash 先显示，sidecar 就绪后导航）。
+- 专用 `XinyuSidecar.exe`，不含 pywebview/pythonnet；实测就绪约 3.47s。
+- 本机安装最小 Rust + VS Build Tools，Tauri release 编译成功；
+  窗口可见 **0.56–2.7s**，内容 **4–7s**（产品口径已接受）。
+- 新增嵌入式 Python sidecar（官方 embeddable + 最小依赖）：业务初始化 **0.56s**；
+- 新增 NSIS 安装包（**18.7 MB**，安装后 **66.9 MB**），embedded sidecar 随安装包分发；
+  静默安装/卸载已验证。
+
+### 人工评测
+- 从 200 条中固定抽 40 条（8 类 × 5）生成空评审表；
+- `evals/review.py` 支持查看、打分、汇总；未填完不算人工金标准。
+
+### AI Gateway 与评测
+- 新增 `ai_gateway.py`：每日预算、模型路由、JSON 结构化输出、修复重试、结果缓存。
+- 所有 `engine.generate` 调用统一走 Gateway；创作、炼字、教学、分类、赏析全部纳入预算/路由。
+- 新增 `evals/`：200 条评测用例（8 类 × 25），mock/live 执行器与基线对比，
+  `python evals/run_eval.py` 可跑；发布门禁可接分数阈值。
+
+### 签名与更新
+- 更新清单支持 Ed25519 签名与 SHA256 校验；公钥不匹配/未签名时拒绝。
+- 支持稳定灰度（install_id + rollout 百分比）与 rollback 清单。
+- 新增 `download_update` / `install_update` / `rollback_update`；新增 `tools/sign_manifest.py`。
+- 新增 `tools/sign_artifacts.ps1`（Authenticode）、`tools/set_rollout.py` 与 HTTPS/灰度发布文档。
+- 前端「检查更新」支持下载、校验、启动安装。
+
+### 可观测性
+- 新增 `metrics.py`：启动耗时、AI 调用成功率/p95/成本、崩溃率、作业状态。
+- 数据管理新增「运行指标」面板；诊断包与指标均为本地。
+- 设置页新增隐私政策/用户协议/导出数据/清空数据。
+
+### UI / 稳定性
+- UI 状态（主题、上次标签、错题本、学习记录、答题历史）改为后端 `ui_state.json`；
+  修复 pywebview `html=` 页面 localStorage 被拒绝导致主题/进度无法持久化。
+- 首页移除首屏 `batch_quality_check` 全量扫描，概览加载明显加快。
+- 设置页新增「AI 预算」卡片：今日已用、剩余、调用次数、每日预算。
+- 原子写入在杀毒软件占用文件时自动重试/降级，避免设置/UI 状态偶发丢失。
+- `test_runner.py` 强制 UTF-8 输出，修复 GBK 控制台 emoji 崩溃。
+
+## V9.2.1（2026-10-17）· 生产级底座
+
+### 可发布
+- 数据目录与资源目录分离：安装版写 `%APPDATA%\Xinyu`，便携版用 `portable.flag`，
+  支持 `XINYU_DATA_DIR` 覆盖；安装到 Program Files 不再写权限失败。
+- 单实例锁：重复启动唤起已有窗口，避免两个进程同时写 SQLite。
+- 数据库迁移框架：`schema_migrations` 版本表、迁移前在线备份、失败回滚。
+- 统一错误契约：公开 API 的未捕获异常统一返回 `{"__error__": {code,message}}`，
+  前端转成带 code 的 Error，便于给出恢复建议。
+- 崩溃捕获：主线程/子线程异常写入 `data/crash`；新增「导出诊断」，
+  诊断包不含 API Key 与作品正文。
+- 隐私与数据权利：应用内隐私政策/用户协议；可导出个人数据、输入 DELETE 清空
+  个人数据（先自动备份，保留经典库与设置）。
+
+### 工程
+- 新增 `.github/workflows/ci.yml`（Windows + Python 3.11 + Node 20）。
+- 新增 `installer/xinyu.iss`、`tools/build_release.ps1`：构建 `Xinyu.exe`、
+  生成 SHA256 `update.json`、可选编译 Inno Setup 安装包。
+- 构建默认改为 onedir（`dist/Xinyu/Xinyu.exe`），单文件用 `build.py --onefile`；
+  显式收集 webview/pythonnet/clr_loader，并排除 PyQt/pandas 等无关模块。
+- 新增 `docs/RELEASE.md`、`docs/STAGE0_CHECKS.md`。
+
+## V9.2.0（2026-10-17）
+
+### 新增功能
+- **概览仪表盘**：经典/作品/收藏/连续学习统计、每日一诗、最近阅读、分类与朝代分布、快捷操作。
+- **经典详情增强**：二创（步韵/仿写/反写/扩写/缩写/现代文）、英日翻译、修辞分析、对比赏析、笔记增删。
+- **数据面板**：用量仪表盘（月度/累计/近 7 天/任务占比）、阅读历史、创作画像、插件列表、备份中心（列表/恢复/删除/保留份数）。
+- **命令面板**：`Ctrl+K` 搜索并执行 16 个常用命令。
+- **主题系统**：宣纸 / 水墨 / 夜间三套主题，记忆上次选择。
+- **阅读与创作体验**：竖排诗稿、一键复制、信笺导出、朗读音色/风格/语速、朗读试听。
+- **服务端分页检索**：文库支持关键词 + 分类分页，单页 18 条，不再一次性加载整库。
+
+### 性能
+- 新增 `search_classics_page`，检索只返回当前页；分类/朝代/统计/概览均带 TTL 缓存。
+- 质量批量检查改为直接对已取出的行评分，去掉 N 次数据库回查。
+- 导入/清洗/删除/收藏/笔记后自动失效缓存，避免陈旧数据。
+- 自动备份改为"周期内已有备份则跳过"，避免每次启动都生成 2 MB 压缩包。
+- SQLite 启动时执行 `PRAGMA optimize`。
+
+### 界面
+- 重做整套视觉系统：顶栏、卡片、统计块、经典卡片、详情面板、命令面板与动效。
+- 统一表单、按钮、Toast、加载遮罩、状态栏与空状态。
+- 响应式布局：窄屏自动隐藏聊天侧栏，导航收敛。
+- 所有动态内容继续统一 HTML 转义。
+
+### 兼容
+- 原有 API 全部保留；新增方法不改变既有返回结构。
+- 旧主题/本地存储数据可继续使用。
+
+## V9.1.0（2026-10-17）
+
+### 修复（阻断级）
+- 补齐 `requirements.txt`：`cryptography`、`requests`、`PyYAML`、`openai>=1.0`；
+  此前在干净环境中 `import engine` 会直接失败。
+- 修复用量统计死锁：`engine._record_usage` 与 `API._log_usage` 不再在持有
+  非重入锁时触发刷盘，避免首次生成或第 200 条日志时界面永久卡死。
+- 修复保存设置后 API Key 变成字面量 `KEPT` 的问题。
+- 修复「预览审核扩充」因入库前按 id 查库导致 `KeyError`、导入恒为 0 的问题。
+- 新增 `polish_line`（炼字）与 `transform_style`（转体裁）后端接口。
+- 关闭默认 `debug=True`，仅在 `XINYU_DEBUG=1` 时开启开发者工具。
+
+### 安全
+- 清除历史文件中的明文 API Key，并替换为占位符。
+- 备份默认排除 `.secret.key`、日志、WAL/SHM 与缓存；恢复做了路径校验与临时目录隔离。
+- 前端所有 AI/导入/数据库文本统一 HTML 转义，并增加 CSP。
+- 导出文件统一写入 `exports/`，不再污染程序根目录。
+
+### 数据与可靠性
+- 三个 `classics.db` 连接合并为一个，减少锁竞争。
+- 备份前执行 WAL checkpoint，避免半快照。
+- 备份文件名精确到微秒，修复"恢复前的安全备份覆盖同一秒目标备份"导致的偶发恢复错误；
+  恢复时忽略旧备份中的 `-wal/-shm`，并在重开数据库前清理侧车文件。
+- 缓存 TTL 参数真正生效（10/30 分钟不再被写成 24 小时）。
+- 去重改用内容指纹（标题 + 作者 + 去标点正文），减少误删。
+- 停止用模板伪造译文/注释，质量评分不再自我膨胀。
+- 日志改为轮转写入（2 MB × 3）。
+
+### 打包
+- 冻结运行时用户数据写入 exe 同目录，模板/静态资源从 PyInstaller 解包目录读取，
+  解决 onefile 模式数据写进临时目录、退出即丢失的问题。
+- 打包脚本补齐 `templates/static/locales/resources`。
+
+### 界面
+- 重写 `main.js`，移除旧版 UI 的 600 余行死代码与 38 个失效 DOM 引用。
+- 初始化改为等待 pywebview 方法真正挂载后再执行，修复首次打开时风格下拉为空的问题。
+- 风格下拉改为按体裁动态加载，与后端风格库一致；接口失败时使用内置风格兜底。
+- 保存作品、导出、续写、品评、随机主题等入口全部接到 V9 界面。
+- 状态栏与 Toast 反馈补齐；教学页增加笔记与学习进度。
+
+### 工程
+- 启动脚本改为 CRLF + 纯 ASCII，修复 cmd 把 LF 换行误解析为命令（`'l' 不是内部或外部命令`）
+  以及中文在 GBK 控制台乱码的问题；新增 `启动心语.bat --check` 自检入口。
+- 新增 `version.py` 作为版本号唯一来源；更新器不再覆盖 `CHANGELOG.md`。
+- 更新源改为可配置（`XINYU_UPDATE_URL` / `settings.update.url`），未配置时明确提示。
+- 新增 `tests/`（pytest）与前后端契约测试；重写内置自检。
+- 新增 `.gitignore`，清理空文件与临时产物。
+- 清理历史文件中的明文 Key，并对旧备份 zip 做脱敏（移除密钥/日志/WAL）。
+
+## V8.0.0（历史）
+- 企业级发布
+- 安全加固
+- 性能优化
+- 朗诵升级

@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>心语</title>
+<style>
+  :root { color-scheme: light; }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: grid; place-items: center;
+    background: radial-gradient(circle at 50% 35%, #fffaf0 0%, #f3e9d2 60%, #e9dcc0 100%);
+    font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+    color: #3b2a1a;
+    user-select: none;
+  }
+  .splash { text-align: center; padding: 40px; }
+  .seal {
+    width: 92px; height: 92px; margin: 0 auto 22px;
+    display: grid; place-items: center;
+    border: 3px solid #9b2d20; border-radius: 22px;
+    color: #9b2d20; font-family: "STKaiti", "KaiTi", serif;
+    font-size: 52px; line-height: 1;
+    background: rgba(255, 250, 240, .65);
+    box-shadow: 0 10px 30px rgba(90, 50, 20, .12);
+  }
+  h1 { margin: 0; font-size: 30px; letter-spacing: 8px; font-weight: 600; }
+  .sub { margin: 12px 0 26px; color: #7a644d; font-size: 14px; letter-spacing: 2px; }
+  .track { width: 220px; height: 3px; margin: 0 auto; background: rgba(120, 80, 40, .18); border-radius: 3px; overflow: hidden; }
+  .track i { display: block; width: 42%; height: 100%; border-radius: 3px; background: #9b2d20; animation: slide 1.4s ease-in-out infinite; }
+  .hint { margin-top: 18px; font-size: 12px; color: #93816b; letter-spacing: 1px; }
+  .version { position: fixed; bottom: 22px; left: 0; right: 0; text-align: center; font-size: 11px; color: #a4937d; letter-spacing: 1px; }
+  @keyframes slide { 0% { transform: translateX(-110%); } 100% { transform: translateX(340%); } }
+</style>
+</head>
+<body>
+  <main class="splash">
+    <div class="seal">心</div>
+    <h1>心语</h1>
+    <p class="sub">古典诗词 AI 工作站</p>
+    <div class="track"><i></i></div>
+    <p class="hint">正在唤醒诗词库，请稍候…</p>
+  </main>
+  <div class="version">V9.3.0 · 首次启动约需几秒</div>
+</body>
+</html>

@@ -1,0 +1,152 @@
+--deepseek API key 创建
+强烈推荐 DeepSeek，原因：注册即送 500 万 tokens，完全免费；中文诗词生成质量非常高；API 稳定，延迟低；无需海外手机号。
+--注册电话：15093686390 注册Email：1265338136@qq.com
+--去 platform.deepseek.com 注册 → 创建 API Key → 填入代码 → 即刻创作
+请将此 API key 保存在安全且易于访问的地方。出于安全原因，你将无法通过 API keys 管理界面再次查看它。如果你丟失了这个 key，将需要重新创建。
+API key  sk-REPLACE_WITH_YOUR_KEY
+--setup_xinyu.py 这个脚本会自动生成心语 V6.5 完整目录结构，并在对应路径下创建好所有占位 Python 文件
+# 1. 生成目录文件
+python setup_xinyu.py
+
+# 2. 安装依赖
+pip install -r requirements.txt
+
+# 3. 启动软件--所有源代码整理后启动 app.py 运行程序
+D：
+cd D:\Myxinyu
+python app.py
+
+
+# 4.一键启动脚本
+在 D:\Myxinyu\ 下新建一个 启动心语.bat 文件，内容如下：
+
+batch
+@echo off
+set MMKV_LOG_LEVEL=off
+python app.py
+pause
+以后双击这个 .bat 文件就能静默启动心语。
+
+================================ 心语 V6.5 完整文件目录结构 ================================ 
+心语V6.5/
+│
+├── app.py                      # 主入口，pywebview 窗口 + API 接口 + HTML 界面
+├── engine.py                   # 双引擎抽象（在线 OpenAI / 离线 llama.cpp）
+├── style_manager.py            # 风格管理器 + 提示词构建（角色+范例+硬约束）
+├── poetry_checker.py           # 平水韵格律检测（入声字、平仄模板、词牌校验）
+├── lyric_checker.py            # 歌词韵脚与结构检测
+├── database.py                 # SQLite 作品库 + 手札数据库
+├── exporter.py                 # 导出排版（横排/竖排/信笺/扇面/对联/春联/社交卡片）
+├── classic_library.py          # 经典文库管理（搜索/分类/随机/步韵）
+├── preference_learner.py       # 用户偏好学习（风格/主题偏好记录与推荐）
+├── annotation_manager.py       # 经典笔记批注管理
+├── plugin_manager.py           # 插件管理器（自动加载 plugins/ 目录）
+├── backup_manager.py           # 数据备份与恢复
+├── extension_manager.py        # 扩展包管理（下载/安装/卸载经典扩展）
+├── rhetorica.py                # 修辞分析器（对仗/典故/叠字检测）
+├── poet_profiler.py            # 创作画像生成（意象统计/情感分布/风格偏好）
+├── poetry_tutor.py             # AI 诗词导师（问答）
+├── poetry_translator.py        # 翻译引擎（中→英/日）
+├── i18n_manager.py             # 多语言管理（中/英/日）
+├── prompt_forge.py             # YAML 提示词模板引擎
+│
+├── requirements.txt            # 依赖清单
+├── setup.py                    # 目录结构自动生成脚本
+├── README.md                   # 项目说明
+│
+├── resources/                  # 资源文件目录
+│   ├── classics.json           # 经典诗词数据（唐诗300+宋词300+古文50+蒙学4+对联500）
+│   ├── word_relations.json     # 字词关系数据（同义词/典故/常用搭配）
+│   ├── knowledge_cards.json    # 诗词知识卡（50张）
+│   ├── rhyme_dict.json         # 押韵字典
+│   ├── allusion_db.json        # 典故库（500条）
+│   │
+│   ├── audio/                  # 音频资源
+│   │   ├── classics/           # 经典朗诵音频（30首，MP3）
+│   │   │   ├── tang_001.mp3
+│   │   │   └── ...
+│   │   └── bgm/                # 背景音乐（3首，MP3）
+│   │       ├── guqin.mp3
+│   │       ├── dizi.mp3
+│   │       └── pipa.mp3
+│   │
+│   ├── fonts/                  # 字体文件
+│   │   └── LXGWWenKai-Regular.ttf  # 霞鹜文楷
+│   │
+│   └── extensions/             # 扩展包目录
+│       └── registry.json       # 扩展安装注册表
+│
+├── prompts/                    # YAML 风格模板目录
+│   ├── 王维.yaml
+│   ├── 岑参.yaml
+│   ├── 李清照.yaml
+│   └── ...
+│
+├── plugins/                    # 插件目录（按需安装）
+│   ├── xinyu-music/            # 谱曲+吟唱插件
+│   ├── xinyu-export-ext/       # 扩展导出插件（扇面/对联/春联）
+│   ├── xinyu-audio-classics/   # 经典朗诵扩展包
+│   └── xinyu-game/             # 格律闯关插件
+│
+├── locales/                    # 多语言包
+│   ├── zh-CN.json              # 简体中文
+│   ├── en-US.json              # English
+│   └── ja-JP.json              # 日本語
+│
+├── models/                     # 离线模型目录（用户自行下载）
+│   └── poem.gguf               # GGUF 量化古诗模型
+│
+├── data/                       # 用户数据目录（运行时生成）
+│   ├── works.db                # 作品库 SQLite
+│   ├── preferences.json        # 偏好学习数据
+│   ├── annotations.json        # 经典笔记批注
+│   ├── reading_stats.json      # 阅读统计
+│   ├── user_styles.json        # 自定义风格
+│   ├── settings.json           # 用户设置
+│   └── manifest.json           # 同步清单
+│
+├── backups/                    # 备份目录（运行时生成）
+│   └── xinyu_backup_*.zip      # 备份压缩包
+│
+└── temp_restore/               # 恢复临时目录（恢复时生成）
+
+核心文件职责说明
+文件	           行数（估）	            职责
+app.py	            ~1500	     主窗口、HTML界面、JS交互逻辑、全部 API 接口
+engine.py	        ~80	         双引擎抽象 + 在线/离线实现
+style_manager.py	~150	     风格库管理 + 提示词三段式构建
+poetry_checker.py	~200	     平水韵检测、绝句/词牌模板校验
+exporter.py	        ~400	     6种排版模式 + 印章绘制
+classic_library.py	~100	     经典数据加载/搜索/分类/随机
+database.py	         ~80	     SQLite CRUD + 手札表
+plugin_manager.py	~50	         插件扫描/加载/调用
+其余模块	        ~各50-100	 偏好学习、备份、扩展、修辞等
+
+================================== 拆分 app.py ==================================
+--拆分为3个部分
+改界面 → 编辑 html_ui.py     HTML 界面字符串
+改功能 → 编辑 api.py         所有 API 方法
+改启动 → 编辑 app.py         主入口，启动窗口
+
+--拆分、修复命令 cmd里面执行
+D:\Myxinyu>cd D:\Myxinyu && copy app.py app_v82_backup.py >nul && python -c "t=open('app.py','r',encoding='utf-8').read();ia=t.find('class API:');ih=t.find('HTML = r');im=t.find(\"if __name__ == '__main__':\");imp=t[:ia].strip();open('api.py','w',encoding='utf-8').write('# -*- coding: utf-8 -*-\n'+imp+'\n\n'+t[ia:ih].strip());open('html_ui.py','w',encoding='utf-8').write('# -*- coding: utf-8 -*-\n'+t[ih:im].strip());open('app.py','w',encoding='utf-8').write('# -*- coding: utf-8 -*-\nimport os, warnings, webview\nos.environ[\"MMKV_LOG_LEVEL\"]=\"off\"\nwarnings.filterwarnings(\"ignore\")\nfrom api import API\nfrom html_ui import HTML\nif __name__==\"__main__\":\n    api=API()\n    window=webview.create_window(\"心语 V8.2\",html=HTML,js_api=api,width=1100,height=750)\n    webview.start()\n    api.close()\n');print('拆分完成')"
+拆分完成
+
+D:\Myxinyu>cd D:\Myxinyu && python -c "t=open('app_v82_backup.py','r',encoding='utf-8').read();ia=t.find('class API:');ih=t.find('HTML = r');im=t.find(\"if __name__ == '__main__':\");imp=t[:ia].strip();api_code=imp+'\n\n'+t[ia:ih].strip();html_code=t[ih:im].strip();open('api.py','w',encoding='utf-8').write('# -*- coding: utf-8 -*-\n'+api_code);open('html_ui.py','w',encoding='utf-8').write('# -*- coding: utf-8 -*-\n'+html_code);print('api.py:',len(api_code),'字节');print('html_ui.py:',len(html_code),'字节')"
+api.py: 23235 字节
+html_ui.py: 26013 字节
+
+D:\Myxinyu>cd D:\Myxinyu && python -c "t=open('app_v82_backup.py','r',encoding='utf-8').read();ih=t.find('HTML = r');im=t.find(\"if __name__ == '__main__':\");html_code=t[ih:im].strip();open('html_ui.py','w',encoding='utf-8').write('# -*- coding: utf-8 -*-\n'+html_code);print('html_ui.py 已修复:',len(html_code),'字节')"
+html_ui.py 已修复: 26013 字节
+
+D:\Myxinyu>cd D:\Myxinyu && python -c "t=open('api.py','r',encoding='utf-8').read();print('最后200字符:',t[-200:])"
+最后200字符:  s = r.run()
+        return {"success":s,"passed":r.passed,"failed":r.failed}
+
+    def close(self): self.db.close(); self.classics_db.close(); self.online_importer.close(); self.async_queue.shutdown()
+
+D:\Myxinyu>cd D:\Myxinyu && python -c "from api import API; print('API导入成功')"
+API导入成功
+
+D:\Myxinyu>
+

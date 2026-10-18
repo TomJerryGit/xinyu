@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements-dev.txt
+
+      - name: Lint
+        run: python -m pyflakes api.py engine.py utils.py logger.py version.py cache_manager.py database.py classics_database.py classics_importer.py online_importer.py backup_manager.py poetry_checker.py style_manager.py updater.py html_ui.py app.py test_runner.py exporter.py i18n_manager.py plugin_manager.py preference_learner.py tts_manager.py errors.py migrations.py crash_reporter.py single_instance.py legal.py tests
+
+      - name: Unit and contract tests
+        run: python -m pytest -q
+
+      - name: Import smoke
+        run: python -c "import app; print('import ok')"
+
+  frontend:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Syntax check
+        run: node --check static/js/main.js
+      - name: Inline handler contract
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest
+          python -m pytest -q tests/test_contract.py

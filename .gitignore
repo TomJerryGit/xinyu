@@ -1,0 +1,16 @@
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.venv/
+venv/
+build/
+dist/
+*.spec
+exports/
+data/
+spike/tauri/src-tauri/sidecar/
+spike/tauri/src-tauri/target/
+*.log
+.DS_Store
+Thumbs.db

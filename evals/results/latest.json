@@ -1,0 +1,49 @@
+{
+  "cases": 200,
+  "passed": 200,
+  "score": 1.0,
+  "threshold": 0.8,
+  "by_task": {
+    "analysis": {
+      "total": 25,
+      "passed": 25,
+      "score": 1.0
+    },
+    "classify": {
+      "total": 25,
+      "passed": 25,
+      "score": 1.0
+    },
+    "creation": {
+      "total": 25,
+      "passed": 25,
+      "score": 1.0
+    },
+    "polish": {
+      "total": 25,
+      "passed": 25,
+      "score": 1.0
+    },
+    "quiz": {
+      "total": 25,
+      "passed": 25,
+      "score": 1.0
+    },
+    "rhetoric": {
+      "total": 25,
+      "passed": 25,
+      "score": 1.0
+    },
+    "teaching": {
+      "total": 25,
+      "passed": 25,
+      "score": 1.0
+    },
+    "translate": {
+      "total": 25,
+      "passed": 25,
+      "score": 1.0
+    }
+  },
+  "failures": []
+}

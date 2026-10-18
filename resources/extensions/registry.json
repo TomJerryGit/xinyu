@@ -1,0 +1,20 @@
+{
+  "installed": {},
+  "available": {
+    "tang_ext": {
+      "name": "唐诗扩展包",
+      "size": "1.5MB",
+      "url": ""
+    },
+    "song_ext": {
+      "name": "宋词扩展包",
+      "size": "0.8MB",
+      "url": ""
+    },
+    "guwen_ext": {
+      "name": "古文扩展包",
+      "size": "1.2MB",
+      "url": ""
+    }
+  }
+}

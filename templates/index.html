@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; connect-src 'self'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src data: blob:; font-src data:;">
+    <title>心语 · 古典诗词 AI 工作站</title>
+    <!-- INLINE_CSS -->
+</head>
+<body class="theme-paper">
+
+<!-- 顶部导航栏 -->
+<header class="top-nav">
+    <div class="nav-brand">
+        <span class="brand-seal">心</span>
+        <span class="brand-text">心语<small>古典诗词工作站</small></span>
+    </div>
+    <nav class="nav-items" id="mainNav">
+        <button class="nav-btn active" onclick="switchNav('dashboard')">概览</button>
+        <button class="nav-btn" onclick="switchNav('creation')">创作</button>
+        <button class="nav-btn" onclick="switchNav('appreciation')">赏析</button>
+        <button class="nav-btn" onclick="switchNav('teaching')">教学</button>
+        <button class="nav-btn" onclick="switchNav('quiz')">题库</button>
+        <button class="nav-btn" onclick="switchNav('classics')">经典文库</button>
+        <button class="nav-btn" onclick="switchNav('data')">数据管理</button>
+        <button class="nav-btn" onclick="switchNav('settings')">设置</button>
+    </nav>
+    <div class="nav-tools">
+        <button onclick="openCmdk()" title="命令面板 (Ctrl+K)" class="tool-btn">⌘K</button>
+        <button onclick="cycleTheme()" title="切换主题" class="tool-btn" id="themeBtn">◐</button>
+        <button onclick="exportTxt()" title="导出 TXT">TXT</button>
+        <button onclick="exportImage()" title="导出图片">IMG</button>
+        <button onclick="saveWork()" title="保存作品">保存</button>
+        <button onclick="randomTopic()" title="随机主题">随机</button>
+    </div>
+</header>
+
+<div id="apiWarning" class="api-warning hidden">AI 服务暂不可用，请检查 API 设置或网络。</div>
+
+<main class="main-layout">
+    <!-- 左侧：功能导航 + 聊天 -->
+    <aside class="left-panel">
+        <div id="sidebar" class="sidebar"></div>
+        <section class="chat-window" id="chatWindow">
+            <header class="chat-header">
+                <span>AI 诗词助手</span>
+                <button onclick="clearChat()" class="btn-icon" title="清空">清空</button>
+            </header>
+            <div class="chat-messages" id="chatMessages">
+                <div class="chat-msg ai"><div class="bubble">你好，我是心语。可以让我赏析一首诗、续写一句，或直接问我关于古典文学的问题。</div></div>
+            </div>
+            <div class="chat-input-area">
+                <input id="chatInput" placeholder="输入消息，或 /deep 静夜思 这样的命令" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendChat();}">
+                <button onclick="sendChat()">发送</button>
+            </div>
+        </section>
+    </aside>
+
+    <!-- 右侧：功能面板 -->
+    <section class="content-area">
+        <!-- 概览 -->
+        <div class="tab-content active" id="tab-dashboard">
+            <div class="dashboard-hero">
+                <div>
+                    <p class="eyebrow" id="dashDate">正在加载...</p>
+                    <h1>今日，读一首诗</h1>
+                    <p class="hero-sub" id="dashGreeting">心语已就绪。</p>
+                </div>
+                <div class="streak-badge" id="dashStreak">连续 0 天</div>
+            </div>
+
+            <div class="stat-grid">
+                <article class="stat-card">
+                    <span class="stat-value" id="statClassics">—</span>
+                    <span class="stat-label">经典篇目</span>
+                    <span class="stat-foot" id="statChars">—</span>
+                </article>
+                <article class="stat-card">
+                    <span class="stat-value" id="statWorks">—</span>
+                    <span class="stat-label">我的作品</span>
+                    <span class="stat-foot">保存在本地作品库</span>
+                </article>
+                <article class="stat-card">
+                    <span class="stat-value" id="statFavorites">—</span>
+                    <span class="stat-label">收藏</span>
+                    <span class="stat-foot" id="statNotes">笔记 0 条</span>
+                </article>
+                <article class="stat-card">
+                    <span class="stat-value" id="statStreak">—</span>
+                    <span class="stat-label">连续学习</span>
+                    <span class="stat-foot">天</span>
+                </article>
+            </div>
+
+            <div class="dash-columns">
+                <section class="card daily-card">
+                    <header class="card-head">
+                        <h2>每日一诗</h2>
+                        <button class="ghost-btn" onclick="loadDashboard()">换一首</button>
+                    </header>
+                    <h3 id="dailyTitle" class="daily-title">—</h3>
+                    <p class="muted" id="dailyMeta"></p>
+                    <div id="dailyContent" class="poem-preview"></div>
+                    <div class="card-actions">
+                        <button class="primary-btn" onclick="openDaily()">查看详情</button>
+                        <button onclick="speakDaily()">朗读</button>
+                        <button onclick="openDailyInAppreciation()">去赏析</button>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <header class="card-head"><h2>最近阅读</h2></header>
+                    <div id="recentReads" class="list-stack"><p class="muted">还没有阅读记录</p></div>
+                </section>
+            </div>
+
+            <div class="dash-columns">
+                <section class="card">
+                    <header class="card-head"><h2>分类分布</h2></header>
+                    <div id="dashCategories" class="chip-list"></div>
+                    <header class="card-head" style="margin-top:16px"><h2>朝代分布</h2></header>
+                    <div id="dashDynasties" class="chip-list"></div>
+                </section>
+                <section class="card">
+                    <header class="card-head"><h2>快捷操作</h2></header>
+                    <div class="quick-grid">
+                        <button onclick="switchNav('creation');randomTopic()">随机主题创作</button>
+                        <button onclick="switchNav('appreciation');getRandomClassic()">随机经典赏析</button>
+                        <button onclick="openClassicsPanel('唐诗')">进入唐诗</button>
+                        <button onclick="createBackup()">立即备份</button>
+                        <button onclick="showQualityReport()">质量报告</button>
+                        <button onclick="openSettings()">API 设置</button>
+                    </div>
+                </section>
+            </div>
+        </div>
+
+        <!-- 创作 -->
+        <div class="tab-content" id="tab-creation">
+            <div class="panel-heading">
+                <h2>创作工坊</h2>
+                <p>选择体裁与风格，一次生成三个候选；可以炼字、转体裁、保存或导出。</p>
+            </div>
+            <div class="form-row">
+                <label>体裁</label>
+                <select id="creationGenre" onchange="updateCreationStyles()">
+                    <option>五言绝句</option>
+                    <option>七言绝句</option>
+                    <option>五言律诗</option>
+                    <option>七言律诗</option>
+                    <option>如梦令</option>
+                    <option>蝶恋花</option>
+                    <option>现代歌词</option>
+                    <option>中国风歌词</option>
+                    <option>抒情散文</option>
+                    <option>哲思小品</option>
+                    <option>写景游记</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>风格</label>
+                <select id="creationStyle"><option value="">默认风格</option></select>
+            </div>
+            <div class="form-row">
+                <label>主题</label>
+                <input id="creationTopic" placeholder="如：秋夜、江南、边塞">
+            </div>
+            <div class="action-row">
+                <button onclick="doCreation()" id="doCreationBtn" class="primary-btn">生成</button>
+                <button onclick="checkCreationPoem()">格律检测</button>
+                <button onclick="saveCreation()">保存</button>
+                <button onclick="polishCreation()">炼字</button>
+                <select id="transformTarget">
+                    <option value="现代诗">现代诗</option>
+                    <option value="散文">散文</option>
+                    <option value="歌词">歌词</option>
+                    <option value="词">词</option>
+                </select>
+                <button onclick="transformCreation(document.getElementById('transformTarget').value)">转体裁</button>
+                <button onclick="toggleVertical()">竖排</button>
+                <button onclick="copyCurrent()">复制</button>
+                <button onclick="exportLetter()">信笺</button>
+            </div>
+            <div id="creationResult" class="result-area"></div>
+        </div>
+
+        <!-- 赏析 -->
+        <div class="tab-content" id="tab-appreciation">
+            <div class="panel-heading">
+                <h2>赏析</h2>
+                <p>输入作品名或任意诗句，获得背景、文本、意境、格律、文化与教学六个维度。</p>
+            </div>
+            <div class="form-row">
+                <input id="appreciationTitle" placeholder="输入作品名或诗句，例如：静夜思">
+                <button class="primary-btn" onclick="doAppreciation()">赏析</button>
+            </div>
+            <div id="appreciationResult" class="result-area"></div>
+        </div>
+
+        <!-- 教学 -->
+        <div class="tab-content" id="tab-teaching">
+            <div class="panel-heading">
+                <h2>教学工坊</h2>
+                <p>按分类选一篇作品，生成背景、逐句精讲、赏析、练习与作者信息。</p>
+            </div>
+            <div class="form-row">
+                <label>分类</label>
+                <select id="teachCatSelect" onchange="loadTeachArticles()"><option value="">全部</option></select>
+            </div>
+            <div class="form-row">
+                <label>文章</label>
+                <select id="teachArtSelect"></select>
+            </div>
+            <div class="form-row">
+                <label>难度</label>
+                <select id="teachLevel">
+                    <option value="beginner">初级</option>
+                    <option value="standard" selected>中级</option>
+                    <option value="advanced">高级</option>
+                </select>
+                <button class="primary-btn" onclick="startTeaching()">开始教学</button>
+                <span id="teachProgress" class="muted">已学习 0 篇</span>
+            </div>
+            <div id="teachBackground" class="tab-content-sub"></div>
+            <div id="teachLines" class="tab-content-sub"></div>
+            <div id="teachAnalysis" class="tab-content-sub"></div>
+            <div id="teachExercises" class="tab-content-sub"></div>
+            <hr>
+            <div class="form-row"><label>我的笔记</label></div>
+            <textarea id="noteInput" placeholder="记录这一篇的赏析、疑问或背诵提示..." class="note-input"></textarea>
+            <button onclick="saveNote()">保存笔记</button>
+            <div id="noteList" class="tab-content-sub"></div>
+        </div>
+
+        <!-- 题库 -->
+        <div class="tab-content" id="tab-quiz">
+            <div class="panel-heading">
+                <h2>题库</h2>
+                <p>按分类与题型组卷；支持限时挑战、错题本与历史成绩。</p>
+            </div>
+            <div class="form-row">
+                <label>分类</label>
+                <select id="quizCat">
+                    <option>唐诗</option><option>宋词</option><option>宋诗</option><option>元曲</option>
+                    <option>经典散文</option><option>蒙学</option><option>经部</option><option>子部</option>
+                    <option>史部</option><option>集部</option><option>论语</option><option>诗经</option><option>楚辞</option>
+                </select>
+            </div>
+            <div class="form-row">
+                <label>难度</label>
+                <select id="quizDifficulty"><option value="1">初级</option><option value="2">中级</option><option value="3">高级</option></select>
+            </div>
+            <div class="form-row">
+                <label>数量</label>
+                <select id="quizCount"><option>5</option><option>10</option><option>15</option></select>
+            </div>
+            <div class="form-row">
+                <label>题型</label>
+                <select id="quizTypes" multiple>
+                    <option value="选择" selected>选择题</option><option value="填空">填空题</option>
+                    <option value="判断">判断题</option><option value="默写">默写题</option><option value="出处">出处题</option>
+                </select>
+            </div>
+            <div class="action-row">
+                <button class="primary-btn" onclick="startQuiz()">生成试卷</button>
+                <button onclick="startTimedQuiz()">限时挑战</button>
+                <button onclick="openWrongBook()">错题本</button>
+                <button onclick="loadQuizHistory()">历史成绩</button>
+            </div>
+            <div id="quizProgress" class="muted" style="margin-top:6px">未开始</div>
+            <div id="quizContent" class="result-area"></div>
+            <div id="quizScore" class="quiz-score"></div>
+        </div>
+
+        <!-- 经典文库 -->
+        <div class="tab-content" id="tab-classics">
+            <div class="panel-heading">
+                <h2>经典文库</h2>
+                <p>经史子集、诗词曲赋、蒙学经典；支持分类、检索、收藏、笔记与二创。</p>
+            </div>
+            <div class="classics-toolbar">
+                <input id="classicSearch" placeholder="搜索标题、作者、正文或标签..." onkeydown="if(event.key==='Enter'){searchClassics();}">
+                <button class="primary-btn" onclick="searchClassics()">搜索</button>
+                <button onclick="showClassicsCategories()">分类</button>
+                <button onclick="showFavorites()">收藏夹</button>
+            </div>
+            <div id="classicsGrid" class="classics-grid"></div>
+            <div id="classicsPager" class="pagination"></div>
+        </div>
+
+        <!-- 数据管理 -->
+        <div class="tab-content" id="tab-data">
+            <div class="panel-heading">
+                <h2>数据管理</h2>
+                <p>健康检查、质量报告、清洗、扩充、备份与用量统计。</p>
+            </div>
+            <div class="action-row">
+                <button class="primary-btn" onclick="runValidate()">数据库健康</button>
+                <button onclick="runCleanAndOrganize()">一键清洗</button>
+                <button onclick="showQualityReport()">质量报告</button>
+                <button onclick="loadUsageDashboard()">用量统计</button>
+                <button onclick="loadMetrics()">运行指标</button>
+                <button onclick="loadProfile()">创作画像</button>
+                <button onclick="loadPlugins()">插件列表</button>
+            </div>
+
+            <section class="card">
+                <header class="card-head"><h2>运行指标</h2><button class="ghost-btn" onclick="loadMetrics()">刷新</button></header>
+                <div id="metricsPanel" class="list-stack"><p class="muted">点击「运行指标」加载</p></div>
+            </section>
+
+            <div class="dash-columns">
+                <section class="card">
+                    <header class="card-head"><h2>用量概览</h2><button class="ghost-btn" onclick="loadUsageDashboard()">刷新</button></header>
+                    <div id="usageDashboard" class="list-stack"><p class="muted">点击「用量统计」加载</p></div>
+                </section>
+                <section class="card">
+                    <header class="card-head"><h2>阅读历史</h2><button class="ghost-btn" onclick="loadReadingHistory()">刷新</button></header>
+                    <div id="readingHistory" class="list-stack"><p class="muted">点击「阅读历史」加载</p></div>
+                </section>
+            </div>
+
+            <section class="card">
+                <header class="card-head"><h2>创作画像</h2></header>
+                <div id="profilePanel" class="list-stack"><p class="muted">点击「创作画像」生成</p></div>
+            </section>
+
+            <section class="card">
+                <header class="card-head">
+                    <h2>备份中心</h2>
+                    <span>
+                        <button class="ghost-btn" onclick="createBackup()">立即备份</button>
+                        <button class="ghost-btn" onclick="loadBackups()">刷新</button>
+                    </span>
+                </header>
+                <div class="form-row">
+                    <label>保留份数</label>
+                    <input id="backupKeep" type="number" min="1" max="60" value="7" style="width:90px">
+                    <button onclick="saveBackupConfig()">保存设置</button>
+                </div>
+                <div id="backupPanel" class="list-stack"><p class="muted">点击「刷新」加载备份列表</p></div>
+            </section>
+
+            <section class="card">
+                <header class="card-head"><h2>插件</h2></header>
+                <div id="pluginList" class="list-stack"><p class="muted">点击「插件列表」加载</p></div>
+            </section>
+
+            <section class="card">
+                <header class="card-head"><h2>数据扩充</h2></header>
+                <h3 class="sub-title">快速扩充（自动导入）</h3>
+                <div class="form-row">
+                    <label>分类</label>
+                    <select id="expandCat">
+                        <option>唐诗</option><option>宋词</option><option>宋诗</option><option>元曲</option>
+                        <option>经典散文</option><option>蒙学</option><option>经部</option><option>子部</option>
+                        <option>史部</option><option>集部</option><option>论语</option><option>诗经</option><option>楚辞</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>时代</label>
+                    <select id="expandEra">
+                        <option value="">不限</option><option>先秦</option><option>两汉</option><option>魏晋</option>
+                        <option>唐</option><option>宋</option><option>元</option><option>明</option><option>清</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>流派</label>
+                    <select id="expandSchool">
+                        <option value="">不限</option><option>婉约</option><option>豪放</option>
+                        <option>山水</option><option>边塞</option><option>儒家</option><option>道家</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>数量</label>
+                    <select id="expandCount"><option>10</option><option>30</option><option>50</option><option>100</option></select>
+                </div>
+                <button class="primary-btn" onclick="startExpand()">开始扩充</button>
+                <div id="expandProgress" class="progress-area"></div>
+                <div id="expandPreview" class="result-area"></div>
+
+                <h3 class="sub-title" style="margin-top:18px">预览审核扩充（人工确认）</h3>
+                <div class="form-row">
+                    <label>分类</label>
+                    <select id="previewCat">
+                        <option>唐诗</option><option>宋词</option><option>宋诗</option><option>元曲</option>
+                        <option>经典散文</option><option>蒙学</option><option>经部</option><option>子部</option>
+                        <option>史部</option><option>集部</option><option>论语</option><option>诗经</option><option>楚辞</option>
+                    </select>
+                </div>
+                <div class="form-row">
+                    <label>数量</label>
+                    <select id="previewCount"><option>5</option><option>10</option><option>20</option></select>
+                </div>
+                <button class="primary-btn" onclick="previewExpand()">预览候选</button>
+                <div id="previewList" class="result-area" style="max-height:300px;overflow-y:auto"></div>
+                <div id="previewActions" style="display:none;margin-top:10px">
+                    <button class="primary-btn" onclick="confirmImport()">确认导入</button>
+                    <button onclick="cancelPreview()">取消</button>
+                </div>
+            </section>
+
+            <div id="validateResult" class="result-area"></div>
+        </div>
+
+        <!-- 设置 -->
+        <div class="tab-content" id="tab-settings">
+            <div class="panel-heading">
+                <h2>设置</h2>
+                <p>API、主题、朗读、更新与缓存。</p>
+            </div>
+            <section class="card">
+                <header class="card-head"><h2>AI 服务</h2></header>
+                <div class="form-row">
+                    <button class="primary-btn" onclick="openSettings()">API 设置</button>
+                    <button onclick="testCurrentApi()">测试当前 API</button>
+                </div>
+                <div id="apiStatus" class="api-status">未检测</div>
+            </section>
+
+            <section class="card">
+                <header class="card-head"><h2>AI 预算</h2><button class="ghost-btn" onclick="loadAiBudget()">刷新</button></header>
+                <div id="budgetPanel" class="list-stack"><p class="muted">加载中...</p></div>
+            </section>
+
+            <section class="card">
+                <header class="card-head"><h2>外观</h2></header>
+                <div class="form-row">
+                    <label>主题</label>
+                    <select id="themeSelect" onchange="setTheme(this.value)">
+                        <option value="paper">宣纸</option>
+                        <option value="ink">水墨</option>
+                        <option value="dark">夜间</option>
+                    </select>
+                </div>
+            </section>
+
+            <section class="card">
+                <header class="card-head"><h2>朗读</h2></header>
+                <div class="form-row">
+                    <label>音色</label>
+                    <select id="ttsVoice"><option value="female">女声</option><option value="male">男声</option><option value="child">童声</option><option value="elder">老者</option></select>
+                </div>
+                <div class="form-row">
+                    <label>风格</label>
+                    <select id="ttsStyle"><option value="normal">朗读</option><option value="chant">吟诵</option><option value="rap">说唱</option><option value="sing">歌唱</option></select>
+                </div>
+                <div class="form-row">
+                    <label>语速 <span id="ttsSpeedVal">1.0x</span></label>
+                    <input type="range" id="ttsSpeed" min="0.6" max="1.8" step="0.1" value="1" oninput="document.getElementById('ttsSpeedVal').textContent=this.value+'x'">
+                </div>
+                <button onclick="testSpeak()">试听</button>
+            </section>
+
+            <section class="card">
+                <header class="card-head"><h2>更新与维护</h2></header>
+                <div class="form-row">
+                    <label>更新源</label>
+                    <input id="updateUrl" placeholder="https://api.github.com/repos/你/心语/releases/latest">
+                    <button onclick="saveUpdateUrl()">保存</button>
+                </div>
+                <div class="action-row">
+                    <button onclick="checkUpdate()">检查更新</button>
+                    <button onclick="clearCache()">清理缓存</button>
+                    <button onclick="showAbout()">关于</button>
+                    <button onclick="showShortcuts()">快捷键</button>
+                    <button onclick="showLegal('privacy')">隐私政策</button>
+                    <button onclick="showLegal('terms')">用户协议</button>
+                    <button onclick="exportDiagnostics()">导出诊断</button>
+                    <button onclick="exportUserData()">导出我的数据</button>
+                    <button onclick="resetUserData()">清空我的数据</button>
+                    <button onclick="window.open('https://platform.deepseek.com')">获取 Key</button>
+                </div>
+            </section>
+        </div>
+    </section>
+</main>
+
+<!-- 经典详情面板 -->
+<div class="panel-overlay hidden" id="classicsOverlay" onclick="closeClassicsPanel()"></div>
+<div class="draggable-panel classics-panel hidden" id="classicsPanel">
+    <div class="panel-header" id="classicsHeader">
+        <span>经典详情</span>
+        <button onclick="closeClassicsPanel()" class="btn-icon">关闭</button>
+    </div>
+    <div class="panel-content" id="classicsContent"></div>
+    <div class="pagination" id="classicsPagination"></div>
+</div>
+
+<!-- 朗读控制面板 -->
+<div class="panel-overlay hidden" id="speakOverlay" onclick="closeSpeakPanel()"></div>
+<div class="draggable-panel popup-panel hidden" id="speakPanel">
+    <div class="panel-header">
+        <span>朗读控制</span>
+        <button onclick="closeSpeakPanel()" class="btn-icon">关闭</button>
+    </div>
+    <div class="panel-content">
+        <label>音色</label>
+        <select id="spVoice"><option value="female">女声</option><option value="male">男声</option><option value="child">童声</option><option value="elder">老者</option></select>
+        <label>语速 <span id="spSpeedVal">1x</span></label>
+        <input type="range" id="spSpeed" min="0.5" max="2" step="0.1" value="1" oninput="document.getElementById('spSpeedVal').textContent=this.value+'x'">
+        <div class="action-row">
+            <button onclick="startLineSpeak()">逐句</button>
+            <button onclick="startFullSpeak()">全文</button>
+            <button onclick="pauseSpeak()">暂停</button>
+            <button onclick="resumeSpeak()">继续</button>
+            <button onclick="stopSpeak()">停止</button>
+        </div>
+        <div id="speakStatus" class="muted">准备朗读...</div>
+    </div>
+</div>
+
+<!-- 命令面板 -->
+<div class="cmdk-overlay hidden" id="cmdkOverlay" onclick="closeCmdk()">
+    <div class="cmdk" onclick="event.stopPropagation()">
+        <input id="cmdkInput" placeholder="输入命令：创作 / 随机 / 备份 / 设置 / 主题..." oninput="filterCmdk()" onkeydown="handleCmdkKey(event)">
+        <div id="cmdkList" class="cmdk-list"></div>
+        <p class="muted">↑↓ 选择 · Enter 执行 · Esc 关闭</p>
+    </div>
+</div>
+
+<div id="statusBar" class="status-bar"></div>
+<div id="toastContainer"></div>
+
+<!-- INLINE_JS -->
+</body>
+</html>

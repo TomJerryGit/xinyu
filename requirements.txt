@@ -1,0 +1,19 @@
+# -*- coding: utf-8 -*-
+"""心语运行依赖。
+
+安装：``pip install -r requirements.txt``
+本地离线模型为可选能力，如需启用请额外安装 ``llama-cpp-python``。
+"""
+
+pywebview>=5.0
+openai>=1.0
+pypinyin>=0.49
+Pillow>=10.0
+cryptography>=41.0
+requests>=2.31
+PyYAML>=6.0
+
+# 可选：简繁转换（缺失时相关功能会自动跳过，不影响启动）
+# opencc-python-reimplemented>=0.1.7
+# 可选：本地 GGUF 模型推理
+# llama-cpp-python>=0.2
