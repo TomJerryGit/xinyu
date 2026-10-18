@@ -143,7 +143,7 @@ class ClassicsDatabase:
         digest = hashlib.sha1(seed.encode("utf-8")).hexdigest()[:12]
         return f"classic_{digest}"
 
-    def insert(self, item):
+    def insert(self, item, commit=True):
         try:
             tags = item.get("tags", "")
             if isinstance(tags, (list, tuple)):
@@ -173,7 +173,8 @@ class ClassicsDatabase:
                     int(item.get("verified", 0) or 0),
                 ),
             )
-            self.conn.commit()
+            if commit:
+                self.conn.commit()
             return True
         except Exception as exc:  # noqa: BLE001 - 单条失败不应中断批量导入
             print(f"插入失败: {exc}")

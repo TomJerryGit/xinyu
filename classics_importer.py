@@ -5,8 +5,10 @@
 实例，避免同一数据库被打开多个连接。
 """
 import json
+import os
 
 from classics_database import ClassicsDatabase
+from utils import resource_path
 
 
 class ClassicsImporter:
@@ -60,6 +62,61 @@ class ClassicsImporter:
                         count += 1
         self.db.improve_data_quality()
         return count
+
+    def import_bundled_seed(self):
+        """导入随安装包分发的经典种子，按标题/作者合并，返回新增数量。"""
+        path = resource_path("resources", "classics_seed.json")
+        if not os.path.exists(path):
+            return 0
+        try:
+            with open(path, "r", encoding="utf-8") as handle:
+                payload = json.load(handle)
+        except (OSError, ValueError):
+            return 0
+        records = payload.get("records", []) if isinstance(payload, dict) else payload
+        added = 0
+        matched_legacy = set()
+        for item in records if isinstance(records, list) else []:
+            valid = self._validate_item(dict(item))
+            if not valid:
+                continue
+            existing = self.db.conn.execute(
+                "SELECT id FROM classics WHERE id=? LIMIT 1", (valid.get("id", ""),)
+            ).fetchone()
+            if existing is None:
+                # 只和旧库条目合并；种子内部同题作品（如不同词牌的宋词）按 ID 各自保留
+                candidates = self.db.conn.execute(
+                    "SELECT id FROM classics WHERE title=? AND author=? AND id NOT LIKE 'cur_%'",
+                    (valid["title"], valid.get("author", "佚名")),
+                ).fetchall()
+                existing = next((row for row in candidates if row["id"] not in matched_legacy), None)
+                if existing is not None:
+                    matched_legacy.add(existing["id"])
+            if existing:
+                # 已有用户数据：只补权威字段，保留原 ID（笔记/收藏不丢）
+                self.db.conn.execute(
+                    """UPDATE classics SET dynasty=?, category=?, subcategory=?, content=?,
+                       annotation=CASE WHEN ?<>'' THEN ? ELSE annotation END,
+                       tags=CASE WHEN ?<>'' THEN ? ELSE tags END, source=?, char_count=?,
+                       is_famous=?, difficulty_level=?, verified=?, updated_at=CURRENT_TIMESTAMP
+                       WHERE id=?""",
+                    (
+                        valid.get("dynasty", "未知"), valid.get("category", "未分类"),
+                        valid.get("subcategory", ""), valid.get("content", ""),
+                        valid.get("annotation", ""), valid.get("annotation", ""),
+                        valid.get("tags", ""), valid.get("tags", ""), valid.get("source", ""),
+                        len(valid.get("content", "")), int(valid.get("is_famous", 0) or 0),
+                        int(valid.get("difficulty_level", 2) or 2), int(valid.get("verified", 0) or 0),
+                        existing["id"],
+                    ),
+                )
+                continue
+            if self.db.insert(valid, commit=False):
+                added += 1
+                matched_legacy.add(valid.get("id", ""))
+        self.db.conn.commit()
+        self.db.improve_data_quality()
+        return added
 
     def import_sample_data(self):
         """导入内置示例数据（诸子百家 + 经典散文核心篇目）。"""

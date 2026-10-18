@@ -1289,8 +1289,9 @@ async function showPanelDetail(id) {
     if (!container) return;
 
     let html = `<h2 class="detail-title">《${esc(item.title)}》</h2>
-        <p class="muted">${esc(item.author)} · ${esc(item.dynasty)} · ${esc(item.category)}</p>
-        <div class="poem-text detail-poem" id="detailPoem">${esc(item.content)}</div>`;
+        <p class="muted">${esc(item.author)} · ${esc(item.dynasty)} · ${esc(item.category)}${item.subcategory ? ' · ' + esc(item.subcategory) : ''}</p>`;
+    if (item.verified) html += '<p><span class="chip static">已校勘</span><span class="chip static">传统经典</span></p>';
+    html += `<div class="poem-text detail-poem" id="detailPoem">${esc(item.content)}</div>`;
     if (item.translation) html += `<div class="analysis-row"><h4>译文</h4><p>${esc(item.translation)}</p></div>`;
     if (item.annotation) html += `<div class="analysis-row"><h4>注释</h4><p>${esc(item.annotation)}</p></div>`;
     if (item.tags) html += `<p class="muted">标签：${esc(item.tags)}</p>`;

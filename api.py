@@ -1938,7 +1938,26 @@ class API(ClassicsMixin, CreationMixin, TeachingMixin, SettingsMixin, BackupExpo
             log("error", f"数据库连接异常: {str(e)[:100]}")
 
         log("info", f"心语 V{VERSION} 启动完成")
-        if self.classics_db.get_total_count() == 0:
+        total = self.classics_db.get_total_count()
+        seed_marker = app_path("data", "classics_seed_version")
+        seed_version = "2"
+        marker_is_current = False
+        try:
+            if os.path.exists(seed_marker):
+                with open(seed_marker, "r", encoding="utf-8") as handle:
+                    marker_is_current = handle.read().strip() == seed_version
+        except OSError:
+            marker_is_current = False
+        if total < 3500 and not marker_is_current:
+            try:
+                seeded = self.classics_importer.import_bundled_seed()
+                atomic_write_text(seed_marker, seed_version)
+                if seeded:
+                    log("info", f"已合并内置经典种子 {seeded} 篇")
+            except Exception as exc:  # noqa: BLE001
+                log("warning", f"内置经典种子导入失败: {str(exc)[:120]}")
+            total = self.classics_db.get_total_count()
+        if total == 0:
             count = self.classics_importer.import_sample_data()
             log("info", f"已自动导入 {count} 篇经典范文")
         self.engine.on_usage = self._log_usage
