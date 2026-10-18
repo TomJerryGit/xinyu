@@ -1364,8 +1364,11 @@ class TeachingMixin:
                     result = {"questions": bank, "source": "bank", "bank_total": len(prebuilt), "blueprint": blueprint}
                     self.teaching_cache[cache_key] = result
                     return result
-                build_bank(self.classics_db.conn, category=category)
-                bank = sample_bank(self.classics_db.conn, category, objective_count)
+                if len(prebuilt) >= objective_count:
+                    bank = random.sample(prebuilt, objective_count)
+                else:
+                    build_bank(self.classics_db.conn, category=category)
+                    bank = sample_bank(self.classics_db.conn, category, objective_count)
                 opened = self._open_quiz_questions(category, open_count) if open_count else []
                 if len(bank) + len(opened) >= int(count):
                     result = {"questions": bank + opened, "source": "bank+rubric" if opened else "bank",
