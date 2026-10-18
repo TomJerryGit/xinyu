@@ -68,6 +68,16 @@ class ClassicsDatabase:
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 PRIMARY KEY (classic_id, level)
             );
+            CREATE TABLE IF NOT EXISTS teaching_plan_versions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                classic_id TEXT NOT NULL,
+                level TEXT NOT NULL,
+                profile TEXT DEFAULT '',
+                data TEXT NOT NULL,
+                source TEXT DEFAULT '',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_teaching_versions ON teaching_plan_versions(classic_id, level, profile);
             CREATE TABLE IF NOT EXISTS question_bank (
                 id TEXT PRIMARY KEY,
                 classic_id TEXT NOT NULL,
@@ -471,6 +481,22 @@ class ClassicsDatabase:
             (classic_id, level, json.dumps(data, ensure_ascii=False), source),
         )
         self.conn.commit()
+
+    def save_teaching_version(self, classic_id, level, profile, data, source="teacher"):
+        self.conn.execute(
+            """INSERT INTO teaching_plan_versions (classic_id, level, profile, data, source)
+               VALUES (?, ?, ?, ?, ?)""",
+            (classic_id, level, profile or "", json.dumps(data, ensure_ascii=False), source),
+        )
+        self.conn.commit()
+
+    def list_teaching_versions(self, classic_id, level, profile=""):
+        rows = self.conn.execute(
+            """SELECT id, source, created_at FROM teaching_plan_versions
+               WHERE classic_id=? AND level=? AND profile=? ORDER BY id DESC LIMIT 20""",
+            (classic_id, level, profile or ""),
+        ).fetchall()
+        return [dict(row) for row in rows]
 
     def update_verified(self, classic_id, verified=1):
         self.conn.execute(

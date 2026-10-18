@@ -306,6 +306,12 @@ function bindShortcuts() {
         if ((event.ctrlKey || event.metaKey) && key === 'k') {
             event.preventDefault();
             openCmdk();
+        } else if (event.key === 'Escape') {
+            if (document.body.classList.contains('classroom-mode') || document.body.classList.contains('student-mode')) {
+                exitClassroomModes();
+            } else if ($('teachEditor') && !$('teachEditor').classList.contains('hidden')) {
+                closeTeachingEditor();
+            }
         } else if ((event.ctrlKey || event.metaKey) && event.key === 'Enter') {
             event.preventDefault();
             if ($('tab-creation').classList.contains('active')) doCreation();
@@ -884,11 +890,21 @@ async function loadTeachArticles() {
     loadCachedTeaching();
 }
 
+function teachingProfile() {
+    const get = (id, fallback) => ($(id) ? $(id).value : fallback);
+    const stage = get('teachStage', 'junior');
+    const hours = get('teachHours', '1');
+    const textbook = get('teachTextbook', '部编版');
+    const student = get('teachStudentLevel', '普通');
+    if (stage === 'junior' && hours === '1' && textbook === '部编版' && student === '普通') return '';
+    return `stage:${stage}|hours:${hours}|textbook:${textbook}|student:${student}`;
+}
+
 async function loadCachedTeaching() {
     const select = $('teachArtSelect');
     if (!select || !select.value) return;
     const level = $('teachLevel') ? $('teachLevel').value : 'standard';
-    const result = await guarded('读取教案', () => callApi('get_teaching_plan', select.value, level), { toastError: false });
+    const result = await guarded('读取教案', () => callApi('get_teaching_plan', select.value, level, teachingProfile()), { toastError: false });
     if (result && result.available && result.plan) {
         renderTeachingPlan(result.plan);
         if ($('teachProgress')) $('teachProgress').textContent = '已加载预置/缓存教案';
@@ -900,8 +916,9 @@ async function startTeaching(force = false) {
     const id = select ? select.value : '';
     if (!id) return showToast('请选择作品', 'error');
     const level = $('teachLevel') ? $('teachLevel').value : 'standard';
+    const profile = teachingProfile();
     if (!force) {
-        const cached = await guarded('读取教案', () => callApi('get_teaching_plan', id, level), { toastError: false });
+        const cached = await guarded('读取教案', () => callApi('get_teaching_plan', id, level, profile), { toastError: false });
         if (cached && cached.available && cached.plan) {
             renderTeachingPlan(cached.plan);
             showToast('使用预置/缓存教案，无需重新调用 AI', 'success', 2500);
@@ -913,7 +930,7 @@ async function startTeaching(force = false) {
     try {
         data = await runJob(
             'teaching',
-            { classic_id: id, level, force: !!force },
+            { classic_id: id, level, profile, force: !!force },
             {
                 timeout: 180000,
                 onProgress: (job) => {
@@ -938,10 +955,10 @@ function renderTeachingPlan(data) {
     if (!data) return;
     state.teaching = data;
     const analysis = data.analysis || {};
-    const sourceMap = { prebuilt: '预置教案', 'offline-prebuilt': '离线预置', offline: '离线教案', ai: 'AI 生成', cache: '缓存' };
+    const sourceMap = { prebuilt: '预置教案', 'offline-prebuilt': '离线预置', offline: '离线教案', ai: 'AI 生成', teacher: '我的版本', cache: '缓存' };
     const source = sourceMap[data._source || data.source] || '教案';
     if ($('teachMeta')) {
-        $('teachMeta').innerHTML = `<b>《${esc(data.title || '')}》</b> · ${esc(data.author || '')} · ${esc(data.dynasty || '')} · ${esc(data.category || '')} <span class="chip static">${source}</span>`;
+        $('teachMeta').innerHTML = `<b>《${esc(data.title || '')}》</b> · ${esc(data.author || '')} · ${esc(data.dynasty || '')} · ${esc(data.category || '')} <span class="chip static">${source}</span>${data.profile ? `<span class="chip static teacher-only">${esc(data.profile)}</span>` : ''}`;
     }
     const objectives = data.objectives || [];
     if ($('teachObjectives')) {
@@ -994,7 +1011,7 @@ function renderTeachingPlan(data) {
             if (Array.isArray(exercise.options) && exercise.options.length) {
                 exerciseHtml += `<br><span class="muted">${exercise.options.map((option) => esc(option)).join('　')}</span>`;
             }
-            exerciseHtml += `<br><span class="muted">答案：${esc(exercise.answer)}　解析：${esc(exercise.explanation || '')}</span></div>`;
+            exerciseHtml += `<br><span class="answer-text">答案：${esc(exercise.answer)}　解析：${esc(exercise.explanation || '')}</span></div>`;
         });
     } else {
         exerciseHtml += '<p class="muted">暂无</p>';
@@ -1014,6 +1031,144 @@ function regenerateTeachingPlan() {
     startTeaching(true);
 }
 
+function downloadMarkdown(name, text) {
+    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = name;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+function worksheetText(data) {
+    const lines = (data.line_teaching && data.line_teaching.lines) || [];
+    const exercises = (data.exercises && data.exercises.exercises) || [];
+    let text = `# 《${data.title || ''}》学习单\n\n作者：${data.author || ''}　朝代：${data.dynasty || ''}\n\n`;
+    text += `## 一、预习单\n\n1. 朗读三遍，标出停顿与易读错的字。\n2. 圈出三个不懂的词，查注释后写下来。\n3. 写下你读不懂的一个问题：\n\n`;
+    text += `## 二、课堂任务单\n\n`;
+    (data.objectives || []).forEach((item) => { text += `- ${item}\n`; });
+    text += `\n原文：\n${data.content || ''}\n\n`;
+    lines.forEach((line, index) => { text += `${index + 1}. ${line.original}\n   我的理解：____________________\n`; });
+    text += `\n小组讨论：这首诗/文中最关键的动词或意象是什么？为什么？\n\n`;
+    text += `## 三、课后作业单\n\n${data.homework || ''}\n\n`;
+    exercises.forEach((exercise, index) => { text += `${index + 1}. ${exercise.question}\n`; });
+    return text;
+}
+
+function exportWorksheets() {
+    const data = state.teaching;
+    if (!data) return showToast('请先生成教案', 'error');
+    downloadMarkdown(`${data.title || '学习单'}-三单.md`, worksheetText(data));
+    showToast('三单已导出', 'success');
+}
+
+function printWorksheets() {
+    const data = state.teaching;
+    if (!data) return showToast('请先生成教案', 'error');
+    document.querySelectorAll('#printRoot').forEach((node) => node.remove());
+    const root = document.createElement('div');
+    root.id = 'printRoot';
+    root.innerHTML = `<div class="print-sheet"><h1>《${esc(data.title || '')}》学习单</h1>
+        <p>作者：${esc(data.author || '')}　朝代：${esc(data.dynasty || '')}</p>
+        <h2>一、预习单</h2>
+        <ol><li>朗读三遍，标出停顿与易读错的字。</li><li>圈出三个不懂的词，查注释后写下来。</li><li>写下你读不懂的一个问题。</li></ol>
+        <h2>二、课堂任务单</h2>
+        <p>${(data.objectives || []).map((item) => '· ' + esc(item)).join('<br>')}</p>
+        <pre class="print-original">${esc(data.content || '')}</pre>
+        <p>小组讨论：最关键的一个动词或意象是什么？为什么？</p>
+        <h2>三、课后作业单</h2>
+        <p>${esc(data.homework || '')}</p>
+        </div>`;
+    document.body.appendChild(root);
+    document.body.classList.add('printing');
+    const cleanup = () => {
+        document.body.classList.remove('printing');
+        root.remove();
+    };
+    window.addEventListener('afterprint', cleanup, { once: true });
+    setTimeout(() => {
+        window.print();
+        setTimeout(cleanup, 1500);
+    }, 100);
+}
+
+function openTeachingEditor() {
+    const data = state.teaching;
+    if (!data) return showToast('请先生成教案', 'error');
+    const set = (id, value) => { if ($(id)) $(id).value = value || ''; };
+    set('editObjectives', (data.objectives || []).join('\n'));
+    set('editKeyPoints', (data.key_points || []).join('\n'));
+    set('editBackground', (data.analysis && data.analysis.background) || '');
+    set('editTextAnalysis', (data.analysis && data.analysis.text_analysis) || '');
+    set('editTeaching', (data.analysis && data.analysis.teaching) || '');
+    set('editHomework', data.homework || '');
+    set('editBoard', data.board_design || '');
+    if ($('teachEditor')) $('teachEditor').classList.remove('hidden');
+}
+
+function closeTeachingEditor() {
+    if ($('teachEditor')) $('teachEditor').classList.add('hidden');
+}
+
+async function saveTeachingEditor() {
+    const data = state.teaching;
+    if (!data) return;
+    const fields = {
+        objectives: ($('editObjectives') ? $('editObjectives').value : '').split('\n').map((x) => x.trim()).filter(Boolean),
+        key_points: ($('editKeyPoints') ? $('editKeyPoints').value : '').split('\n').map((x) => x.trim()).filter(Boolean),
+        background: $('editBackground') ? $('editBackground').value.trim() : '',
+        text_analysis: $('editTextAnalysis') ? $('editTextAnalysis').value.trim() : '',
+        teaching: $('editTeaching') ? $('editTeaching').value.trim() : '',
+        homework: $('editHomework') ? $('editHomework').value.trim() : '',
+        board_design: $('editBoard') ? $('editBoard').value.trim() : '',
+    };
+    const id = $('teachArtSelect') ? $('teachArtSelect').value : '';
+    const level = $('teachLevel') ? $('teachLevel').value : 'standard';
+    const result = await guarded('保存教案', () => callApi('save_teaching_plan_custom', id, level, teachingProfile(), JSON.stringify(fields)));
+    if (result && result.available) {
+        renderTeachingPlan(result.plan);
+        closeTeachingEditor();
+        showToast('已保存为我的版本', 'success');
+    }
+}
+
+async function restoreTeachingPlan() {
+    const id = $('teachArtSelect') ? $('teachArtSelect').value : '';
+    const level = $('teachLevel') ? $('teachLevel').value : 'standard';
+    const result = await guarded('恢复预置', () => callApi('restore_teaching_plan', id, level, teachingProfile()));
+    if (result && result.available) {
+        renderTeachingPlan(result.plan);
+        closeTeachingEditor();
+        showToast('已恢复预置教案', 'success');
+    }
+}
+
+function toggleClassroomMode() {
+    document.body.classList.remove('student-mode');
+    document.body.classList.toggle('classroom-mode');
+    if (document.body.classList.contains('classroom-mode')) {
+        switchNav('teaching');
+        showToast('课堂模式：答案已隐藏，按 Esc 退出', 'success', 2500);
+    }
+}
+
+function toggleStudentMode() {
+    document.body.classList.remove('classroom-mode');
+    document.body.classList.toggle('student-mode');
+    if (document.body.classList.contains('student-mode')) {
+        switchNav('teaching');
+        showToast('学生模式：已隐藏答案与教师备注', 'success', 2500);
+    }
+}
+
+function exitClassroomModes() {
+    document.body.classList.remove('classroom-mode', 'student-mode');
+    showToast('已退出课堂模式', 'success');
+}
+
 function exportTeachingPlan() {
     const data = state.teaching;
     if (!data) return showToast('请先生成教案', 'error');
@@ -1028,15 +1183,7 @@ function exportTeachingPlan() {
     text += `\n## 练习\n`;
     exercises.forEach((exercise, index) => { text += `${index + 1}. ${exercise.question}（答案：${exercise.answer}）\n`; });
     text += `\n## 作业\n${data.homework || ''}\n`;
-    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = `${data.title || '教案'}-教案.md`;
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    downloadMarkdown(`${data.title || '教案'}-教案.md`, text);
     showToast('教案已导出', 'success');
 }
 

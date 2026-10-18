@@ -211,16 +211,50 @@
                 <select id="teachArtSelect"></select>
             </div>
             <div class="form-row">
+                <label>学段</label>
+                <select id="teachStage" onchange="loadCachedTeaching()">
+                    <option value="primary">小学</option>
+                    <option value="junior" selected>初中</option>
+                    <option value="senior">高中</option>
+                </select>
+                <label>课时</label>
+                <select id="teachHours" onchange="loadCachedTeaching()">
+                    <option value="1">1 课时</option>
+                    <option value="2">2 课时</option>
+                </select>
+                <label>教材</label>
+                <select id="teachTextbook" onchange="loadCachedTeaching()">
+                    <option value="部编版">部编版</option>
+                    <option value="人教版">人教版</option>
+                    <option value="苏教版">苏教版</option>
+                    <option value="其他">其他</option>
+                </select>
+                <label>学生</label>
+                <select id="teachStudentLevel" onchange="loadCachedTeaching()">
+                    <option value="基础">基础</option>
+                    <option value="普通" selected>普通</option>
+                    <option value="进阶">进阶</option>
+                </select>
+            </div>
+            <div class="form-row">
                 <label>难度</label>
-                <select id="teachLevel">
+                <select id="teachLevel" onchange="loadCachedTeaching()">
                     <option value="beginner">初级</option>
                     <option value="standard" selected>中级</option>
                     <option value="advanced">高级</option>
                 </select>
                 <button class="primary-btn" onclick="startTeaching()">开始教学</button>
                 <button onclick="regenerateTeachingPlan()">重新生成</button>
+                <button onclick="openTeachingEditor()">编辑教案</button>
                 <button onclick="exportTeachingPlan()">导出教案</button>
                 <span id="teachProgress" class="muted">已学习 0 篇</span>
+            </div>
+            <div class="form-row">
+                <button onclick="toggleClassroomMode()">课堂模式</button>
+                <button onclick="toggleStudentMode()">学生模式</button>
+                <button onclick="exitClassroomModes()">退出课堂</button>
+                <button onclick="exportWorksheets()">导出三单</button>
+                <button onclick="printWorksheets()">打印学习单</button>
             </div>
             <div id="teachMeta" class="result-meta"></div>
             <div id="teachObjectives" class="tab-content-sub"></div>
@@ -230,6 +264,24 @@
             <div id="teachAnalysis" class="tab-content-sub"></div>
             <div id="teachExercises" class="tab-content-sub"></div>
             <div id="teachHomework" class="tab-content-sub"></div>
+            <div id="printSheet" class="print-sheet"></div>
+            <div id="teachEditor" class="teach-editor hidden">
+                <div class="teach-editor-card">
+                    <header><b>编辑教案</b><button class="btn-icon" onclick="closeTeachingEditor()">关闭</button></header>
+                    <label>教学目标（每行一条）</label><textarea id="editObjectives"></textarea>
+                    <label>重点提示（每行一条）</label><textarea id="editKeyPoints"></textarea>
+                    <label>创作背景</label><textarea id="editBackground"></textarea>
+                    <label>文本解读</label><textarea id="editTextAnalysis"></textarea>
+                    <label>教学建议</label><textarea id="editTeaching"></textarea>
+                    <label>课后作业</label><textarea id="editHomework"></textarea>
+                    <label>板书设计</label><textarea id="editBoard"></textarea>
+                    <div class="action-row">
+                        <button class="primary-btn" onclick="saveTeachingEditor()">保存我的版本</button>
+                        <button onclick="restoreTeachingPlan()">恢复预置</button>
+                        <button onclick="closeTeachingEditor()">取消</button>
+                    </div>
+                </div>
+            </div>
             <hr>
             <div class="form-row"><label>我的笔记</label></div>
             <textarea id="noteInput" placeholder="记录这一篇的赏析、疑问或背诵提示..." class="note-input"></textarea>

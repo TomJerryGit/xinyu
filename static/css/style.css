@@ -1003,3 +1003,59 @@ button.chip:hover { border-color: var(--accent); color: var(--accent); }
 }
 
 .hidden { display: none !important; }
+
+/* ---------- 教学：课堂/学生模式、打印、编辑器 ---------- */
+.classroom-mode .top-nav,
+.classroom-mode .left-panel { display: none !important; }
+.classroom-mode .main-layout { height: 100vh; padding: 0; }
+.classroom-mode .content-area { max-width: none; width: 100%; padding: 4vh 7vw; }
+.classroom-mode #tab-teaching { display: block !important; }
+.classroom-mode #teachLines .teaching-line { font-size: 1.25rem; line-height: 2; }
+.classroom-mode #teachExercises .answer-text,
+.classroom-mode #teachHomework,
+.classroom-mode #noteList,
+.classroom-mode #noteInput,
+.classroom-mode .teacher-only { display: none !important; }
+.classroom-mode #teachMeta { font-size: 1.15rem; }
+.classroom-mode #tab-teaching h4 { font-size: 1.2rem; }
+.student-mode #teachMeta .teacher-only,
+.student-mode #teachExercises .answer-text,
+.student-mode #teachHomework,
+.student-mode #noteList,
+.student-mode #noteInput,
+.student-mode .student-hide { display: none !important; }
+.answer-text { color: var(--text-soft); }
+
+.print-sheet { display: none; }
+.teach-editor {
+    position: fixed; inset: 0; z-index: 1200;
+    background: rgba(0,0,0,.45); display: flex; align-items: center; justify-content: center;
+}
+.teach-editor.hidden { display: none; }
+.teach-editor-card {
+    width: min(760px, 92vw); max-height: 88vh; overflow: auto;
+    background: var(--card); border-radius: var(--radius); padding: 22px; box-shadow: var(--shadow-lg);
+}
+.teach-editor-card header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.teach-editor-card label { display: block; margin-top: 10px; color: var(--text-soft); font-size: 13px; }
+.teach-editor-card textarea { width: 100%; min-height: 58px; margin-top: 4px; }
+.teach-editor-card .action-row { margin-top: 14px; }
+
+@media print {
+    body.printing > *:not(#printRoot) { display: none !important; }
+    body.printing #printRoot .print-sheet { display: block !important; }
+    body.printing .print-sheet { position: static; padding: 0; color: #000; background: #fff; }
+}
+
+#printRoot { display: none; }
+body.printing #printRoot { display: block; }
+body.printing #printRoot .print-sheet {
+    display: block !important; padding: 24px; color: #111; background: #fff;
+    font-family: var(--serif); font-size: 14pt; line-height: 1.8;
+}
+body.printing #printRoot .print-original { white-space: pre-wrap; font-size: 15pt; border: 1px solid #bbb; padding: 12px; }
+body.printing #printRoot h1 { font-size: 22pt; }
+body.printing #printRoot h2 { font-size: 15pt; margin-top: 18px; border-bottom: 1px solid #999; }
+
+body.printing > *:not(#printRoot) { display: none !important; }
+body.printing #printRoot { display: block !important; }

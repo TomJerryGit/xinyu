@@ -1026,7 +1026,24 @@ class CreationMixin:
 # ---------------------- 教学类 Mixin ----------------------
 class TeachingMixin:
     @staticmethod
-    def _offline_teaching_plan(item: Dict, level: str = "standard") -> Dict:
+    def _profile_dict(profile: str) -> Dict:
+        result = {}
+        for part in str(profile or "").split("|"):
+            if ":" in part:
+                key, value = part.split(":", 1)
+                result[key.strip()] = value.strip()
+        return result
+
+    @staticmethod
+    def _profile_text(profile: str) -> str:
+        data = TeachingMixin._profile_dict(profile)
+        if not data:
+            return "常规学情"
+        labels = {"stage": "学段", "hours": "课时", "textbook": "教材", "student": "学生水平"}
+        return "；".join(f"{labels.get(k, k)}：{v}" for k, v in data.items() if v)
+
+    @staticmethod
+    def _offline_teaching_plan(item: Dict, level: str = "standard", profile: str = "") -> Dict:
         """不调用 AI 也能立即出教案的离线骨架；只写可证明的内容。"""
         title = item.get("title", "")
         author = item.get("author", "佚名")
@@ -1041,6 +1058,14 @@ class TeachingMixin:
             "standard": ["把握意象与情感", "分析关键句的作用", "完成课堂练习并订正"],
             "advanced": ["分析艺术手法与结构", "比较同题材作品", "写一段 200 字鉴赏"],
         }.get(level, ["把握意象与情感", "分析关键句的作用", "完成课堂练习并订正"])
+        stage = TeachingMixin._profile_dict(profile).get("stage", "")
+        hours = TeachingMixin._profile_dict(profile).get("hours", "1")
+        if stage == "primary":
+            objectives = ["借助拼音读通全文", "说出诗中的画面", "当堂背诵并积累一个好词"]
+        elif stage == "senior":
+            objectives = ["分析意象与结构的关系", "比较同题材作品", "形成有依据的鉴赏短评"]
+        elif stage == "junior":
+            objectives = ["读通文意，积累重点字词", "分析关键句的表达效果", "完成课堂练习并订正"]
         key_points = []
         if annotation:
             key_points.append(annotation[:120])
@@ -1083,14 +1108,16 @@ class TeachingMixin:
             "related_works": [], "author_info": {"name": author, "dynasty": dynasty, "works_count": 0, "representative": []},
             "knowledge_points": [str(item.get("tags") or "")] if item.get("tags") else [],
             "objectives": objectives, "key_points": key_points,
-            "homework": f"背诵并默写《{title}》；用 150 字写出一个画面或一处情感。",
+            "homework": f"背诵并默写《{title}》；用 150 字写出一个画面或一处情感。" if str(hours) != "2" else f"背诵并默写《{title}》；完成一段 200 字鉴赏，并与同题材作品比较。",
             "board_design": f"《{title}》／{author}\n意象：____　情感：____　手法：____",
+            "profile": profile or "",
             "source": "offline", "quality": "offline",
         }
 
-    def _ai_teaching_plan(self, item: Dict, level: str = "standard"):
+    def _ai_teaching_plan(self, item: Dict, level: str = "standard", profile: str = ""):
         """一次结构化调用生成完整教案；失败返回 None，由离线骨架兜底。"""
         prompt = f"""你是中学语文备课专家。为《{item.get('title','')}》设计一份{level}教案。
+学情参数：{TeachingMixin._profile_text(profile)}
 只输出 JSON 对象，字段：
 {{"objectives":["教学目标"],"key_points":["重点"],"background":"创作背景","text_analysis":"文本解读",
 "line_teaching":[{{"original":"原句","translation":"翻译","keywords":"关键词","rhetoric":"修辞","structure":"结构作用"}}],
@@ -1113,41 +1140,81 @@ class TeachingMixin:
         except Exception:
             return None
 
-    def get_teaching_plan(self, classic_id: str, level: str = "standard") -> Dict:
-        """返回预置/缓存教案；没有则 available=False，前端再决定是否生成。"""
-        cached = self.classics_db.get_teaching_plan(classic_id, level)
+    def get_teaching_plan(self, classic_id: str, level: str = "standard", profile: str = "") -> Dict:
+        """返回预置/缓存教案；没有则按需生成离线骨架。"""
+        cache_level = level if not profile else f"{level}|{profile}"
+        cached = self.classics_db.get_teaching_plan(classic_id, cache_level)
         if cached:
             return {"available": True, "plan": cached, "source": cached.get("_source", "cache")}
-        try:
-            path = resource_path("resources", "teaching_plans.json")
-            if os.path.exists(path):
-                payload = json.load(open(path, encoding="utf-8"))
-                plan = (payload.get("plans", {}) or {}).get(f"{classic_id}|{level}")
-                if plan:
-                    self.classics_db.save_teaching_plan(classic_id, level, plan, "prebuilt")
-                    plan["_source"] = "prebuilt"
-                    return {"available": True, "plan": plan, "source": "prebuilt"}
-        except Exception:
-            pass
+        if not profile:
+            try:
+                path = resource_path("resources", "teaching_plans.json")
+                if os.path.exists(path):
+                    payload = json.load(open(path, encoding="utf-8"))
+                    plan = (payload.get("plans", {}) or {}).get(f"{classic_id}|{level}")
+                    if plan:
+                        self.classics_db.save_teaching_plan(classic_id, cache_level, plan, "prebuilt")
+                        plan["_source"] = "prebuilt"
+                        return {"available": True, "plan": plan, "source": "prebuilt"}
+            except Exception:
+                pass
         item = self.classics_db.get_by_id(classic_id)
         if not item:
             return {"available": False, "error": "未找到该作品"}
         # 全量按需预置：任意一篇第一次打开都立即得到离线教案，并写入缓存
-        plan = self._offline_teaching_plan(item, level)
+        plan = self._offline_teaching_plan(item, level, profile)
         plan["_source"] = "offline"
-        self.classics_db.save_teaching_plan(classic_id, level, plan, "offline")
+        self.classics_db.save_teaching_plan(classic_id, cache_level, plan, "offline")
         return {"available": True, "plan": plan, "source": "offline"}
 
-    def _assemble_teaching_plan(self, item: Dict, level: str, force: bool = False) -> Dict:
+    def save_teaching_plan_custom(self, classic_id: str, level: str, profile: str, fields_json: str) -> Dict:
+        try:
+            fields = json.loads(fields_json) if isinstance(fields_json, str) else dict(fields_json or {})
+        except (TypeError, ValueError):
+            return {"error": "教案字段格式错误"}
+        current = self.get_teaching_plan(classic_id, level, profile)
+        if not current.get("available"):
+            return {"error": "未找到教案"}
+        plan = current["plan"]
+        allowed = {"objectives", "key_points", "background", "text_analysis", "artistic", "rhythm",
+                   "culture", "teaching", "homework", "board_design"}
+        for key, value in fields.items():
+            if key in allowed:
+                plan[key] = value
+        if "background" in fields or "text_analysis" in fields:
+            analysis = plan.get("analysis") if isinstance(plan.get("analysis"), dict) else {}
+            for key in ("background", "text_analysis", "artistic", "rhythm", "culture", "teaching"):
+                if key in fields:
+                    analysis[key] = fields[key]
+            plan["analysis"] = analysis
+        plan["source"] = "teacher"
+        plan["_source"] = "teacher"
+        cache_level = level if not profile else f"{level}|{profile}"
+        self.classics_db.save_teaching_plan(classic_id, cache_level, plan, "teacher")
+        self.classics_db.save_teaching_version(classic_id, level, profile, plan, "teacher")
+        return {"available": True, "plan": plan, "source": "teacher"}
+
+    def get_teaching_versions(self, classic_id: str, level: str, profile: str = "") -> List[Dict]:
+        return self.classics_db.list_teaching_versions(classic_id, level, profile)
+
+    def restore_teaching_plan(self, classic_id: str, level: str, profile: str = "") -> Dict:
+        cache_level = level if not profile else f"{level}|{profile}"
+        self.classics_db.conn.execute(
+            "DELETE FROM teaching_plans WHERE classic_id=? AND level=?", (classic_id, cache_level)
+        )
+        self.classics_db.conn.commit()
+        return self.get_teaching_plan(classic_id, level, profile)
+
+    def _assemble_teaching_plan(self, item: Dict, level: str, force: bool = False, profile: str = "") -> Dict:
         if not force:
-            cached = self.get_teaching_plan(item["id"], level)
+            cached = self.get_teaching_plan(item["id"], level, profile)
             if cached.get("available"):
                 return cached["plan"]
-        plan = self._ai_teaching_plan(item, level) if force and self.engine.is_configured() else None
+        plan = self._ai_teaching_plan(item, level, profile) if force and self.engine.is_configured() else None
         if not plan:
-            plan = self._offline_teaching_plan(item, level)
+            plan = self._offline_teaching_plan(item, level, profile)
         # 补齐离线分析字段，保证旧 UI 兼容
-        offline = self._offline_teaching_plan(item, level)
+        offline = self._offline_teaching_plan(item, level, profile)
         for key, value in offline.items():
             plan.setdefault(key, value)
         related = self.classics_db.search(keyword=item["author"], category=item["category"], limit=5)
@@ -1157,10 +1224,12 @@ class TeachingMixin:
                                "representative": [{"title": w["title"], "id": w["id"]} for w in author_works[:3]]}
         plan["title"], plan["author"], plan["dynasty"] = item["title"], item["author"], item["dynasty"]
         plan["content"], plan["level"], plan["category"] = item["content"], level, item.get("category", "")
-        self.classics_db.save_teaching_plan(item["id"], level, plan, plan.get("source", "ai"))
+        plan["profile"] = profile or ""
+        cache_level = level if not profile else f"{level}|{profile}"
+        self.classics_db.save_teaching_plan(item["id"], cache_level, plan, plan.get("source", "ai"))
         return plan
 
-    def teaching_workflow(self, classic_id: str, level: str = "standard", progress=None, should_cancel=None, checkpoint=None, resume=None, force: bool = False) -> Dict:
+    def teaching_workflow(self, classic_id: str, level: str = "standard", progress=None, should_cancel=None, checkpoint=None, resume=None, force: bool = False, profile: str = "") -> Dict:
         self.engine.current_task = "teaching"
 
         def tick(value, message=""):
@@ -1173,12 +1242,12 @@ class TeachingMixin:
         if not item:
             return {"error": "未找到该作品"}
         tick(10, "读取作品")
-        cache_key = f"{classic_id}_{level}"
+        cache_key = f"{classic_id}_{level}_{profile}"
         if not force and cache_key in self.teaching_cache:
             tick(100, "使用内存缓存")
             return self.teaching_cache[cache_key]
         tick(30, "检查预置教案")
-        plan = self._assemble_teaching_plan(item, level, force=force)
+        plan = self._assemble_teaching_plan(item, level, force=force, profile=profile)
         self.teaching_cache[cache_key] = plan
         try:
             self.classics_db.conn.execute("UPDATE classics SET teaching_data=? WHERE id=?", (json.dumps(plan, ensure_ascii=False), classic_id))
@@ -2118,6 +2187,7 @@ class API(ClassicsMixin, CreationMixin, TeachingMixin, SettingsMixin, BackupExpo
             checkpoint=getattr(progress, "checkpoint", None),
             resume=getattr(progress, "get_checkpoint", lambda: {})(),
             force=bool(payload.get("force", False)),
+            profile=str(payload.get("profile", "")),
         )
 
     def _job_expand(self, payload, progress, cancelled):
