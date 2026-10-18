@@ -9,6 +9,9 @@ on:
       - "static/**"
       - "templates/**"
       - "build_sidecar.py"
+      - "requirements.txt"
+      - "requirements-dev.txt"
+      - "tools/prepare_tauri_bundle.py"
       - ".github/workflows/tauri-spike.yml"
 
 jobs:
