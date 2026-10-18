@@ -218,12 +218,18 @@
                     <option value="advanced">高级</option>
                 </select>
                 <button class="primary-btn" onclick="startTeaching()">开始教学</button>
+                <button onclick="regenerateTeachingPlan()">重新生成</button>
+                <button onclick="exportTeachingPlan()">导出教案</button>
                 <span id="teachProgress" class="muted">已学习 0 篇</span>
             </div>
+            <div id="teachMeta" class="result-meta"></div>
+            <div id="teachObjectives" class="tab-content-sub"></div>
+            <div id="teachKeyPoints" class="tab-content-sub"></div>
             <div id="teachBackground" class="tab-content-sub"></div>
             <div id="teachLines" class="tab-content-sub"></div>
             <div id="teachAnalysis" class="tab-content-sub"></div>
             <div id="teachExercises" class="tab-content-sub"></div>
+            <div id="teachHomework" class="tab-content-sub"></div>
             <hr>
             <div class="form-row"><label>我的笔记</label></div>
             <textarea id="noteInput" placeholder="记录这一篇的赏析、疑问或背诵提示..." class="note-input"></textarea>
@@ -259,6 +265,7 @@
                 <select id="quizTypes" multiple>
                     <option value="选择" selected>选择题</option><option value="填空">填空题</option>
                     <option value="判断">判断题</option><option value="默写">默写题</option><option value="出处">出处题</option>
+                    <option value="新题">新题（AI）</option><option value="鉴赏">鉴赏题（AI）</option>
                 </select>
             </div>
             <div class="action-row">

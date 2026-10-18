@@ -25,6 +25,7 @@ def main():
         "--hidden-import", "cryptography.hazmat.primitives.asymmetric.ed25519",
         "--hidden-import", "exporter",
         "--hidden-import", "poetry_checker",
+        "--hidden-import", "question_bank",
         "--hidden-import", "PIL.Image",
         "--hidden-import", "PIL.ImageDraw",
         "--hidden-import", "PIL.ImageFont",

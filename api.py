@@ -25,7 +25,7 @@ from tts_manager import TTSManager
 from updater import Updater, VersionManager
 from logger import log
 from version import VERSION
-from utils import safe_json_load, safe_json_save, ensure_dir, normalize_path, get_timestamp_str, secure_file_permissions, app_path, atomic_write_text
+from utils import safe_json_load, safe_json_save, ensure_dir, normalize_path, get_timestamp_str, secure_file_permissions, app_path, atomic_write_text, resource_path
 
 _UI_STATE_LOCK = threading.Lock()
 
@@ -1025,9 +1025,143 @@ class CreationMixin:
 
 # ---------------------- 教学类 Mixin ----------------------
 class TeachingMixin:
-    def teaching_workflow(self, classic_id: str, level: str = "standard", progress=None, should_cancel=None, checkpoint=None, resume=None) -> Dict:
+    @staticmethod
+    def _offline_teaching_plan(item: Dict, level: str = "standard") -> Dict:
+        """不调用 AI 也能立即出教案的离线骨架；只写可证明的内容。"""
+        title = item.get("title", "")
+        author = item.get("author", "佚名")
+        dynasty = item.get("dynasty", "")
+        category = item.get("category", "")
+        content = item.get("content", "") or ""
+        lines = [line.strip() for line in content.splitlines() if line.strip()]
+        annotation = (item.get("annotation") or "").strip()
+        translation = (item.get("translation") or "").strip()
+        objectives = {
+            "beginner": ["读准字音，能正确、流利地朗读", "说出作品写了什么", "当堂背诵"],
+            "standard": ["把握意象与情感", "分析关键句的作用", "完成课堂练习并订正"],
+            "advanced": ["分析艺术手法与结构", "比较同题材作品", "写一段 200 字鉴赏"],
+        }.get(level, ["把握意象与情感", "分析关键句的作用", "完成课堂练习并订正"])
+        key_points = []
+        if annotation:
+            key_points.append(annotation[:120])
+        if item.get("tags"):
+            key_points.append("关键词：" + str(item["tags"])[:80])
+        if not key_points:
+            key_points.append(f"《{title}》的意象、情感与结构")
+        analysis = {
+            "background": annotation or f"{dynasty}{author}《{title}》，属{category}。",
+            "text_analysis": translation or f"原文共 {len(content)} 字、{len(lines)} 句；逐句译文待补充。",
+            "artistic": "结合原文意象与语言节奏品读；离线版不编造未核实的风格判断。",
+            "rhythm": "格律/曲牌信息待补充；可结合原文句式和押韵观察。",
+            "culture": "文化知识点待补充；可参考篇目注释与同作者作品。",
+            "teaching": "先读通，再抓意象，最后落到背诵与练习。",
+        }
+        line_rows = [
+            {"original": line, "translation": "", "keywords": "", "rhetoric": "", "structure": ""}
+            for line in lines
+        ]
+        options = [category or "其他", "唐诗", "宋词", "元曲"]
+        deduped = []
+        for option in options:
+            if option not in deduped:
+                deduped.append(option)
+        while len(deduped) < 2:
+            deduped.append("其他")
+        exercises = [
+            {"type": "填空", "question": f"《{title}》的作者是____。", "options": [], "answer": author,
+             "explanation": f"作者：{author}。"},
+            {"type": "选择", "question": f"《{title}》属于哪一分类？", "options": deduped,
+             "answer": deduped.index(category) if category in deduped else 0,
+             "explanation": f"分类：{category}。"},
+            {"type": "简答", "question": f"用自己的话概括《{title}》的主要内容。", "options": [],
+             "answer": "言之有据，能引用原文关键词即可。", "explanation": "考查整体感知，不要求唯一答案。"},
+        ]
+        return {
+            "title": title, "author": author, "dynasty": dynasty, "content": content,
+            "category": category, "level": level, "analysis": analysis,
+            "line_teaching": {"lines": line_rows}, "exercises": {"exercises": exercises},
+            "related_works": [], "author_info": {"name": author, "dynasty": dynasty, "works_count": 0, "representative": []},
+            "knowledge_points": [str(item.get("tags") or "")] if item.get("tags") else [],
+            "objectives": objectives, "key_points": key_points,
+            "homework": f"背诵并默写《{title}》；用 150 字写出一个画面或一处情感。",
+            "board_design": f"《{title}》／{author}\n意象：____　情感：____　手法：____",
+            "source": "offline", "quality": "offline",
+        }
+
+    def _ai_teaching_plan(self, item: Dict, level: str = "standard"):
+        """一次结构化调用生成完整教案；失败返回 None，由离线骨架兜底。"""
+        prompt = f"""你是中学语文备课专家。为《{item.get('title','')}》设计一份{level}教案。
+只输出 JSON 对象，字段：
+{{"objectives":["教学目标"],"key_points":["重点"],"background":"创作背景","text_analysis":"文本解读",
+"line_teaching":[{{"original":"原句","translation":"翻译","keywords":"关键词","rhetoric":"修辞","structure":"结构作用"}}],
+"artistic":"意境","rhythm":"格律","culture":"文化拓展","teaching":"教学建议",
+"exercises":[{{"type":"选择/填空/简答","question":"题目","options":[],"answer":0,"explanation":"解析"}}],
+"homework":"作业","board_design":"板书设计"}}
+要求：忠实原文，不编造不确定的典故；翻译用现代汉语；题目必须有答案。
+原文：{item.get('content','')[:1200]}"""
+        try:
+            try:
+                self.engine._ensure().max_tokens = max(1800, getattr(self.engine._ensure(), "max_tokens", 512))
+            except Exception:
+                pass
+            data = self.ai.generate_structured("teaching", prompt, required=["objectives", "line_teaching", "exercises", "background", "text_analysis"])
+            if not isinstance(data, dict) or not data.get("line_teaching"):
+                return None
+            data["source"] = "ai"
+            data["quality"] = "ai"
+            return data
+        except Exception:
+            return None
+
+    def get_teaching_plan(self, classic_id: str, level: str = "standard") -> Dict:
+        """返回预置/缓存教案；没有则 available=False，前端再决定是否生成。"""
+        cached = self.classics_db.get_teaching_plan(classic_id, level)
+        if cached:
+            return {"available": True, "plan": cached, "source": cached.get("_source", "cache")}
+        try:
+            path = resource_path("resources", "teaching_plans.json")
+            if os.path.exists(path):
+                payload = json.load(open(path, encoding="utf-8"))
+                plan = (payload.get("plans", {}) or {}).get(f"{classic_id}|{level}")
+                if plan:
+                    self.classics_db.save_teaching_plan(classic_id, level, plan, "prebuilt")
+                    plan["_source"] = "prebuilt"
+                    return {"available": True, "plan": plan, "source": "prebuilt"}
+        except Exception:
+            pass
+        item = self.classics_db.get_by_id(classic_id)
+        if not item:
+            return {"available": False, "error": "未找到该作品"}
+        # 全量按需预置：任意一篇第一次打开都立即得到离线教案，并写入缓存
+        plan = self._offline_teaching_plan(item, level)
+        plan["_source"] = "offline"
+        self.classics_db.save_teaching_plan(classic_id, level, plan, "offline")
+        return {"available": True, "plan": plan, "source": "offline"}
+
+    def _assemble_teaching_plan(self, item: Dict, level: str, force: bool = False) -> Dict:
+        if not force:
+            cached = self.get_teaching_plan(item["id"], level)
+            if cached.get("available"):
+                return cached["plan"]
+        plan = self._ai_teaching_plan(item, level) if force and self.engine.is_configured() else None
+        if not plan:
+            plan = self._offline_teaching_plan(item, level)
+        # 补齐离线分析字段，保证旧 UI 兼容
+        offline = self._offline_teaching_plan(item, level)
+        for key, value in offline.items():
+            plan.setdefault(key, value)
+        related = self.classics_db.search(keyword=item["author"], category=item["category"], limit=5)
+        plan["related_works"] = [{"id": r["id"], "title": r["title"], "author": r["author"]} for r in related if r["id"] != item["id"]]
+        author_works = self.classics_db.search(keyword=item["author"], limit=10)
+        plan["author_info"] = {"name": item["author"], "dynasty": item["dynasty"], "works_count": len(author_works),
+                               "representative": [{"title": w["title"], "id": w["id"]} for w in author_works[:3]]}
+        plan["title"], plan["author"], plan["dynasty"] = item["title"], item["author"], item["dynasty"]
+        plan["content"], plan["level"], plan["category"] = item["content"], level, item.get("category", "")
+        self.classics_db.save_teaching_plan(item["id"], level, plan, plan.get("source", "ai"))
+        return plan
+
+    def teaching_workflow(self, classic_id: str, level: str = "standard", progress=None, should_cancel=None, checkpoint=None, resume=None, force: bool = False) -> Dict:
         self.engine.current_task = "teaching"
-        state = dict(resume or {})
 
         def tick(value, message=""):
             if should_cancel and should_cancel():
@@ -1035,91 +1169,52 @@ class TeachingMixin:
             if progress:
                 progress(value, message)
 
-        def save(stage, **fields):
-            state.update(fields)
-            state["stage"] = stage
-            if checkpoint:
-                checkpoint(dict(state))
-
-        cache_key = f"{classic_id}_{level}"
-        if cache_key in self.teaching_cache:
-            tick(100, "使用缓存")
-            return self.teaching_cache[cache_key]
         item = self.classics_db.get_by_id(classic_id)
         if not item:
             return {"error": "未找到该作品"}
-        tick(5, "读取作品")
-        cached = item.get("teaching_data")
-        if cached and cached.strip():
-            try:
-                data = json.loads(cached)
-                if data.get("level") == level:
-                    self.teaching_cache[cache_key] = data
-                    return data
-            except Exception:
-                pass
-
-        analysis = state.get("analysis")
-        if not isinstance(analysis, dict) or not analysis:
-            analysis = self.deep_analysis(classic_id)
-            if analysis.get("error"):
-                analysis = {"background": item.get("annotation", ""), "text_analysis": item.get("translation", ""), "artistic": "", "rhythm": "", "culture": "", "teaching": ""}
-            save("analysis", analysis=analysis)
-        tick(30, "六维赏析完成")
-
-        line_teaching = state.get("line_teaching")
-        if not isinstance(line_teaching, dict) or "lines" not in line_teaching:
-            line_prompt = f"请为《{item['title']}》逐句讲解，返回JSON：{{'lines':[{{'original':'句子','translation':'翻译','keywords':'关键词','rhetoric':'修辞','structure':'结构作用'}}]}}"
-            try:
-                line_teaching = self.ai.generate_structured("teaching", line_prompt, required=["lines"])
-            except Exception:
-                line_teaching = {"lines": []}
-            if not line_teaching.get("lines"):
-                lines = [l.strip() for l in item["content"].split("\n") if l.strip()]
-                line_teaching = {"lines": [{"original": l, "translation": "", "keywords": "", "rhetoric": "", "structure": ""} for l in lines]}
-            save("lines", line_teaching=line_teaching)
-        tick(50, "逐句讲解完成")
-
-        exercises = state.get("exercises")
-        if not isinstance(exercises, dict) or "exercises" not in exercises:
-            ex_prompt = f"为《{item['title']}》设计3道练习题，难度{level}，返回JSON：{{'exercises':[{{'type':'选择','question':'题目','options':['A','B','C','D'],'answer':0,'explanation':'解析'}}]}}"
-            try:
-                exercises = self.ai.generate_structured("teaching", ex_prompt, required=["exercises"])
-            except Exception:
-                exercises = {"exercises": []}
-            save("exercises", exercises=exercises)
-        tick(70, "练习题完成")
-
-        related = self.classics_db.search(keyword=item["author"], category=item["category"], limit=5)
-        related_works = [{"id": r["id"], "title": r["title"], "author": r["author"]} for r in related if r["id"] != item["id"]]
-        author_works = self.classics_db.search(keyword=item["author"], limit=10)
-        author_info = {"name": item["author"], "dynasty": item["dynasty"], "works_count": len(author_works), "representative": [{"title": w["title"], "id": w["id"]} for w in author_works[:3]]}
-        tick(85, "作者与相关作品")
-
-        knowledge_points = state.get("knowledge_points")
-        if not isinstance(knowledge_points, list):
-            knowledge_points = []
-            try:
-                knowledge_points = json.loads(self.ai.generate(self.engine.current_task or "generate", f"为《{item['title']}》提取2个文化知识点，JSON数组"))
-                if not isinstance(knowledge_points, list):
-                    knowledge_points = []
-            except Exception:
-                pass
-            save("knowledge", knowledge_points=knowledge_points)
-
-        data = {"title": item["title"], "author": item["author"], "dynasty": item["dynasty"], "content": item["content"], "level": level, "analysis": analysis, "line_teaching": line_teaching, "exercises": exercises, "related_works": related_works, "author_info": author_info, "knowledge_points": knowledge_points}
-        self.teaching_cache[cache_key] = data
-        self.classics_db.conn.execute("UPDATE classics SET teaching_data=? WHERE id=?", (json.dumps(data, ensure_ascii=False), classic_id))
-        self.classics_db.conn.commit()
-        save("done", knowledge_points=knowledge_points)
-        tick(100, "完成")
-        return data
+        tick(10, "读取作品")
+        cache_key = f"{classic_id}_{level}"
+        if not force and cache_key in self.teaching_cache:
+            tick(100, "使用内存缓存")
+            return self.teaching_cache[cache_key]
+        tick(30, "检查预置教案")
+        plan = self._assemble_teaching_plan(item, level, force=force)
+        self.teaching_cache[cache_key] = plan
+        try:
+            self.classics_db.conn.execute("UPDATE classics SET teaching_data=? WHERE id=?", (json.dumps(plan, ensure_ascii=False), classic_id))
+            self.classics_db.conn.commit()
+        except Exception:
+            pass
+        if checkpoint:
+            checkpoint({"stage": "done", "plan": plan})
+        tick(100, "教案完成")
+        return plan
 
     def generate_quiz(self, category: str = "唐诗", difficulty: int = 1, count: int = 5, types: str = "选择") -> Dict:
         self.engine.current_task = "quiz"
         cache_key = f"quiz_{category}_{difficulty}_{count}_{types}"
         if cache_key in self.teaching_cache:
             return self.teaching_cache[cache_key]
+        # 基础卷优先走本地题库；只有“新题/鉴赏”等显式需求才交给 AI
+        type_set = {part.strip() for part in str(types or "选择").split(",") if part.strip()}
+        if type_set == {"选择"} and int(difficulty or 1) <= 1:
+            try:
+                from question_bank import build_bank, load_prebuilt, sample_bank
+
+                prebuilt = load_prebuilt(category)
+                if len(prebuilt) >= int(count):
+                    bank = random.sample(prebuilt, int(count))
+                    result = {"questions": bank, "source": "bank", "bank_total": len(prebuilt)}
+                    self.teaching_cache[cache_key] = result
+                    return result
+                build_bank(self.classics_db.conn, category=category)
+                bank = sample_bank(self.classics_db.conn, category, count)
+                if len(bank) >= int(count):
+                    result = {"questions": bank, "source": "bank", "bank_total": len(bank)}
+                    self.teaching_cache[cache_key] = result
+                    return result
+            except Exception:
+                pass
         items = self.classics_db.search(category=category, limit=200)
         if not items:
             return {"questions": []}
@@ -2022,6 +2117,7 @@ class API(ClassicsMixin, CreationMixin, TeachingMixin, SettingsMixin, BackupExpo
             should_cancel=cancelled,
             checkpoint=getattr(progress, "checkpoint", None),
             resume=getattr(progress, "get_checkpoint", lambda: {})(),
+            force=bool(payload.get("force", False)),
         )
 
     def _job_expand(self, payload, progress, cancelled):

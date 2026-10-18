@@ -52,6 +52,8 @@ def build(onefile: bool = False) -> int:
         "--hidden-import",
         "test_runner",
         "--hidden-import",
+        "question_bank",
+        "--hidden-import",
         "PIL.Image",
         "--hidden-import",
         "PIL.ImageDraw",

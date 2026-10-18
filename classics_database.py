@@ -5,6 +5,7 @@
 笔记、阅读历史与数据质量维护。
 """
 import hashlib
+import json
 import re
 import sqlite3
 
@@ -59,6 +60,31 @@ class ClassicsDatabase:
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             );
+            CREATE TABLE IF NOT EXISTS teaching_plans (
+                classic_id TEXT NOT NULL,
+                level TEXT NOT NULL,
+                data TEXT NOT NULL,
+                source TEXT DEFAULT '',
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                PRIMARY KEY (classic_id, level)
+            );
+            CREATE TABLE IF NOT EXISTS question_bank (
+                id TEXT PRIMARY KEY,
+                classic_id TEXT NOT NULL,
+                category TEXT DEFAULT '',
+                dynasty TEXT DEFAULT '',
+                difficulty INTEGER DEFAULT 1,
+                type TEXT DEFAULT '选择',
+                question TEXT NOT NULL,
+                options TEXT DEFAULT '[]',
+                answer TEXT DEFAULT '',
+                explanation TEXT DEFAULT '',
+                source TEXT DEFAULT 'rule',
+                verified INTEGER DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+            CREATE INDEX IF NOT EXISTS idx_question_bank_cat ON question_bank(category, difficulty);
+            CREATE INDEX IF NOT EXISTS idx_question_bank_type ON question_bank(type);
             CREATE TABLE IF NOT EXISTS reading_history (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 classic_id TEXT NOT NULL,
@@ -422,6 +448,29 @@ class ClassicsDatabase:
             else:
                 break
         return streak
+
+    def get_teaching_plan(self, classic_id, level="standard"):
+        row = self.conn.execute(
+            "SELECT data, source, updated_at FROM teaching_plans WHERE classic_id=? AND level=?",
+            (classic_id, level),
+        ).fetchone()
+        if not row:
+            return None
+        try:
+            data = json.loads(row["data"])
+            data["_source"] = row["source"] or "cache"
+            data["_updated_at"] = row["updated_at"]
+            return data
+        except (TypeError, ValueError):
+            return None
+
+    def save_teaching_plan(self, classic_id, level, data, source="ai"):
+        self.conn.execute(
+            """INSERT OR REPLACE INTO teaching_plans (classic_id, level, data, source, updated_at)
+               VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)""",
+            (classic_id, level, json.dumps(data, ensure_ascii=False), source),
+        )
+        self.conn.commit()
 
     def update_verified(self, classic_id, verified=1):
         self.conn.execute(

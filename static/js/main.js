@@ -851,19 +851,69 @@ async function loadTeachArticles() {
         option.textContent = `${row.title} - ${row.author}`;
         articleSelect.appendChild(option);
     });
+    const preferred = rows.find((row) => row.is_famous && row.char_count <= 160 && ['唐诗', '宋词', '诗经', '楚辞'].includes(row.category))
+        || rows.find((row) => row.is_famous && ['唐诗', '宋词', '诗经', '楚辞', '经典散文', '魏晋南北朝'].includes(row.category))
+        || rows.find((row) => row.is_famous) || rows[0];
+    let chosenId = preferred ? preferred.id : '';
+    if (!preferred || preferred.char_count > 200) {
+        try {
+            const poems = await callApi('search_classics_v2', '', '唐诗', '', '', 1000);
+            const knownTitles = ['静夜思', '春晓', '登鹳雀楼', '望庐山瀑布', '相思', '鹿柴'];
+            const shortPoem = Array.isArray(poems)
+                ? (poems.find((row) => knownTitles.includes(row.title))
+                    || poems.filter((row) => row.is_famous).sort((a, b) => (a.char_count || 0) - (b.char_count || 0))[0]
+                    || poems[0])
+                : null;
+            if (shortPoem && shortPoem.id) {
+                let option = Array.from(articleSelect.options).find((item) => item.value === shortPoem.id);
+                if (!option) {
+                    option = document.createElement('option');
+                    option.value = shortPoem.id;
+                    option.textContent = `${shortPoem.title} - ${shortPoem.author}`;
+                    articleSelect.appendChild(option);
+                }
+                chosenId = shortPoem.id;
+            }
+        } catch (error) {
+            /* 保留默认选项 */
+        }
+    }
+    if (chosenId) articleSelect.value = chosenId;
+    articleSelect.onchange = () => loadCachedTeaching();
+    if ($('teachLevel')) $('teachLevel').onchange = () => loadCachedTeaching();
+    loadCachedTeaching();
 }
 
-async function startTeaching() {
+async function loadCachedTeaching() {
+    const select = $('teachArtSelect');
+    if (!select || !select.value) return;
+    const level = $('teachLevel') ? $('teachLevel').value : 'standard';
+    const result = await guarded('读取教案', () => callApi('get_teaching_plan', select.value, level), { toastError: false });
+    if (result && result.available && result.plan) {
+        renderTeachingPlan(result.plan);
+        if ($('teachProgress')) $('teachProgress').textContent = '已加载预置/缓存教案';
+    }
+}
+
+async function startTeaching(force = false) {
     const select = $('teachArtSelect');
     const id = select ? select.value : '';
     if (!id) return showToast('请选择作品', 'error');
     const level = $('teachLevel') ? $('teachLevel').value : 'standard';
-    showLoading('tab-teaching', 'AI 备课中（可取消）...');
+    if (!force) {
+        const cached = await guarded('读取教案', () => callApi('get_teaching_plan', id, level), { toastError: false });
+        if (cached && cached.available && cached.plan) {
+            renderTeachingPlan(cached.plan);
+            showToast('使用预置/缓存教案，无需重新调用 AI', 'success', 2500);
+            return;
+        }
+    }
+    showLoading('tab-teaching', force ? '重新生成教案...' : '备课中（可用离线兜底）...');
     let data = null;
     try {
         data = await runJob(
             'teaching',
-            { classic_id: id, level },
+            { classic_id: id, level, force: !!force },
             {
                 timeout: 180000,
                 onProgress: (job) => {
@@ -881,9 +931,30 @@ async function startTeaching() {
     }
     if (!data) return showToast('教学加载失败，请检查网络或 API 余额', 'error', 5000);
     if (data.error) return showToast(data.error, 'error');
+    renderTeachingPlan(data);
+}
 
+function renderTeachingPlan(data) {
+    if (!data) return;
     state.teaching = data;
     const analysis = data.analysis || {};
+    const sourceMap = { prebuilt: '预置教案', 'offline-prebuilt': '离线预置', offline: '离线教案', ai: 'AI 生成', cache: '缓存' };
+    const source = sourceMap[data._source || data.source] || '教案';
+    if ($('teachMeta')) {
+        $('teachMeta').innerHTML = `<b>《${esc(data.title || '')}》</b> · ${esc(data.author || '')} · ${esc(data.dynasty || '')} · ${esc(data.category || '')} <span class="chip static">${source}</span>`;
+    }
+    const objectives = data.objectives || [];
+    if ($('teachObjectives')) {
+        $('teachObjectives').innerHTML = `<h4>教学目标</h4>${objectives.length
+            ? `<ol>${objectives.map((item) => `<li>${esc(item)}</li>`).join('')}</ol>`
+            : '<p class="muted">暂无</p>'}`;
+    }
+    const keyPoints = data.key_points || [];
+    if ($('teachKeyPoints')) {
+        $('teachKeyPoints').innerHTML = `<h4>重点提示</h4>${keyPoints.length
+            ? `<ul>${keyPoints.map((item) => `<li>${esc(item)}</li>`).join('')}</ul>`
+            : '<p class="muted">暂无</p>'}`;
+    }
     if ($('teachBackground')) {
         $('teachBackground').innerHTML = `<h4>背景溯源</h4><p>${esc(analysis.background || '暂无')}</p>`;
     }
@@ -891,7 +962,9 @@ async function startTeaching() {
     let linesHtml = '<h4>逐句精讲</h4>';
     if (lines.length) {
         lines.forEach((line) => {
-            linesHtml += `<div class="teaching-line"><b>${esc(line.original)}</b><span>${esc(line.translation || '')}</span></div>`;
+            const detail = [line.keywords && `关键词：${line.keywords}`, line.rhetoric && `修辞：${line.rhetoric}`, line.structure && `结构：${line.structure}`]
+                .filter(Boolean).join('　');
+            linesHtml += `<div class="teaching-line"><b>${esc(line.original)}</b><span>${esc(line.translation || '译文待补充')}</span>${detail ? `<small class="muted">${esc(detail)}</small>` : ''}</div>`;
         });
     } else {
         linesHtml += '<p class="muted">暂无</p>';
@@ -899,6 +972,10 @@ async function startTeaching() {
     if ($('teachLines')) $('teachLines').innerHTML = linesHtml;
 
     let analysisHtml = `<h4>赏析</h4><p>${esc(analysis.text_analysis || '暂无')}</p>`;
+    const extras = [['意境', analysis.artistic], ['格律', analysis.rhythm], ['文化', analysis.culture], ['教学建议', analysis.teaching]];
+    extras.forEach(([label, value]) => {
+        if (value) analysisHtml += `<div class="analysis-row"><h4>${label}</h4><p>${esc(value)}</p></div>`;
+    });
     const related = data.related_works || [];
     if (related.length) {
         analysisHtml += '<h4>相关作品</h4><ul>';
@@ -910,18 +987,57 @@ async function startTeaching() {
     if ($('teachAnalysis')) $('teachAnalysis').innerHTML = analysisHtml;
 
     const exercises = (data.exercises && data.exercises.exercises) || [];
-    let exerciseHtml = '<h4>练习</h4>';
+    let exerciseHtml = '<h4>课堂练习</h4>';
     if (exercises.length) {
-        exercises.forEach((exercise) => {
-            exerciseHtml += `<p><b>${esc(exercise.question)}</b><br><span class="muted">答案：${esc(exercise.answer)}</span></p>`;
+        exercises.forEach((exercise, index) => {
+            exerciseHtml += `<div class="quiz-question"><b>${index + 1}. [${esc(exercise.type || '题')}]</b> ${esc(exercise.question)}`;
+            if (Array.isArray(exercise.options) && exercise.options.length) {
+                exerciseHtml += `<br><span class="muted">${exercise.options.map((option) => esc(option)).join('　')}</span>`;
+            }
+            exerciseHtml += `<br><span class="muted">答案：${esc(exercise.answer)}　解析：${esc(exercise.explanation || '')}</span></div>`;
         });
     } else {
         exerciseHtml += '<p class="muted">暂无</p>';
     }
     if ($('teachExercises')) $('teachExercises').innerHTML = exerciseHtml;
 
-    markAsLearned(id);
-    renderNotes(id);
+    let homeworkHtml = '';
+    if (data.homework) homeworkHtml += `<h4>课后作业</h4><p>${esc(data.homework)}</p>`;
+    if (data.board_design) homeworkHtml += `<h4>板书设计</h4><pre class="legal-text">${esc(data.board_design)}</pre>`;
+    if ($('teachHomework')) $('teachHomework').innerHTML = homeworkHtml;
+
+    markAsLearned($('teachArtSelect') ? $('teachArtSelect').value : '');
+    renderNotes($('teachArtSelect') ? $('teachArtSelect').value : '');
+}
+
+function regenerateTeachingPlan() {
+    startTeaching(true);
+}
+
+function exportTeachingPlan() {
+    const data = state.teaching;
+    if (!data) return showToast('请先生成教案', 'error');
+    const lines = (data.line_teaching && data.line_teaching.lines) || [];
+    const exercises = (data.exercises && data.exercises.exercises) || [];
+    let text = `# 《${data.title || ''}》教案\n\n作者：${data.author || ''}　朝代：${data.dynasty || ''}\n\n## 教学目标\n`;
+    (data.objectives || []).forEach((item) => { text += `- ${item}\n`; });
+    text += `\n## 重点\n`; (data.key_points || []).forEach((item) => { text += `- ${item}\n`; });
+    text += `\n## 背景\n${(data.analysis && data.analysis.background) || ''}\n`;
+    text += `\n## 逐句\n`;
+    lines.forEach((line) => { text += `- ${line.original}：${line.translation || '（待补充）'}\n`; });
+    text += `\n## 练习\n`;
+    exercises.forEach((exercise, index) => { text += `${index + 1}. ${exercise.question}（答案：${exercise.answer}）\n`; });
+    text += `\n## 作业\n${data.homework || ''}\n`;
+    const blob = new Blob([text], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${data.title || '教案'}-教案.md`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+    showToast('教案已导出', 'success');
 }
 
 function updateTeachProgress() {
@@ -988,7 +1104,8 @@ async function startQuiz() {
         return;
     }
     state.quiz = result;
-    let html = '';
+    const sourceText = result.source === 'bank' ? '本地题库' : 'AI/规则';
+    let html = `<div class="result-meta">组卷来源：${sourceText} · ${result.questions.length} 题</div>`;
     result.questions.forEach((question, index) => {
         html += `<div class="quiz-question"><p><b>${index + 1}. [${esc(question.type)}]</b> ${esc(question.question)}</p>`;
         if (question.type === '选择') {
