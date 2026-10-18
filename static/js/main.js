@@ -44,6 +44,7 @@ const state = {
     skipClassicsLoad: false,
     currentJobId: null,
     uiState: {},
+    verifiedOnly: false,
 };
 
 /* ---------------- 基础工具 ---------------- */
@@ -1166,6 +1167,12 @@ async function searchClassics() {
     await loadClassicsPage();
 }
 
+function toggleVerifiedOnly(checked) {
+    state.verifiedOnly = !!checked;
+    state.panelPage = 1;
+    loadClassicsPage();
+}
+
 async function loadClassicsPage() {
     const grid = $('classicsGrid');
     if (!grid) return;
@@ -1178,7 +1185,8 @@ async function loadClassicsPage() {
         '',
         '',
         state.panelPage,
-        state.panelPageSize
+        state.panelPageSize,
+        state.verifiedOnly
     ), { toastError: false });
     hideLoading('classicsGrid');
     if (!result) {
@@ -1199,7 +1207,7 @@ function renderClassicsGrid() {
     const title = state.panelKeyword
         ? `搜索「${esc(state.panelKeyword)}」`
         : (state.panelCat ? `${esc(state.panelCat)}` : '全部作品');
-    let html = `<div class="result-meta">${title} · 共 ${state.panelTotal} 篇</div>`;
+    let html = `<div class="result-meta">${title}${state.verifiedOnly ? ' · 只看已校勘' : ''} · 共 ${state.panelTotal} 篇</div>`;
     if (!state.panelItems.length) {
         html += '<p class="muted">没有找到作品，换个关键词试试。</p>';
         grid.innerHTML = html;
@@ -1292,8 +1300,14 @@ async function showPanelDetail(id) {
         <p class="muted">${esc(item.author)} · ${esc(item.dynasty)} · ${esc(item.category)}${item.subcategory ? ' · ' + esc(item.subcategory) : ''}</p>`;
     if (item.verified) html += '<p><span class="chip static">已校勘</span><span class="chip static">传统经典</span></p>';
     html += `<div class="poem-text detail-poem" id="detailPoem">${esc(item.content)}</div>`;
-    if (item.translation) html += `<div class="analysis-row"><h4>译文</h4><p>${esc(item.translation)}</p></div>`;
-    if (item.annotation) html += `<div class="analysis-row"><h4>注释</h4><p>${esc(item.annotation)}</p></div>`;
+    if (item.translation) {
+        const draft = item.translation_status === 'draft';
+        html += `<div class="analysis-row"><h4>译文${draft ? '（AI 草案，待复核）' : (item.translation_status === 'approved' ? '（已复核）' : '')}</h4><p>${esc(item.translation)}</p></div>`;
+    }
+    if (item.annotation) {
+        const draft = item.annotation_status === 'draft';
+        html += `<div class="analysis-row"><h4>注释${draft ? '（AI 草案，待复核）' : (item.annotation_status === 'approved' ? '（已复核）' : '')}</h4><p>${esc(item.annotation)}</p></div>`;
+    }
     if (item.tags) html += `<p class="muted">标签：${esc(item.tags)}</p>`;
 
     html += `<div class="detail-actions">

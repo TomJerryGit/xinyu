@@ -108,6 +108,10 @@ class ClassicsDatabase:
             "updated_at": "TIMESTAMP",
             "teaching_data": "TEXT DEFAULT ''",
             "source": "TEXT DEFAULT ''",
+            "translation_status": "TEXT DEFAULT ''",
+            "annotation_status": "TEXT DEFAULT ''",
+            "reviewed_by": "TEXT DEFAULT ''",
+            "reviewed_at": "TIMESTAMP",
         }
         changed = False
         for name, definition in additions.items():
@@ -198,7 +202,7 @@ class ClassicsDatabase:
 
     # ---------- 查询 ----------
     @staticmethod
-    def _filters(keyword="", category="", dynasty="", author="", difficulty=None):
+    def _filters(keyword="", category="", dynasty="", author="", difficulty=None, verified_only=False):
         conditions = []
         params = []
         if keyword:
@@ -217,10 +221,12 @@ class ClassicsDatabase:
         if difficulty is not None:
             conditions.append("difficulty_level = ?")
             params.append(difficulty)
+        if verified_only:
+            conditions.append("verified = 1")
         return (" AND ".join(conditions) if conditions else "1=1"), params
 
-    def search(self, keyword="", category="", dynasty="", author="", difficulty=None, limit=50, offset=0):
-        where_clause, params = self._filters(keyword, category, dynasty, author, difficulty)
+    def search(self, keyword="", category="", dynasty="", author="", difficulty=None, limit=50, offset=0, verified_only=False):
+        where_clause, params = self._filters(keyword, category, dynasty, author, difficulty, verified_only)
         query = (
             f"SELECT * FROM classics WHERE {where_clause} "
             "ORDER BY is_famous DESC, char_count DESC LIMIT ? OFFSET ?"
@@ -228,8 +234,8 @@ class ClassicsDatabase:
         params.extend([int(limit), int(offset)])
         return [dict(row) for row in self.conn.execute(query, params).fetchall()]
 
-    def count_search(self, keyword="", category="", dynasty="", author="", difficulty=None):
-        where_clause, params = self._filters(keyword, category, dynasty, author, difficulty)
+    def count_search(self, keyword="", category="", dynasty="", author="", difficulty=None, verified_only=False):
+        where_clause, params = self._filters(keyword, category, dynasty, author, difficulty, verified_only)
         return self.conn.execute(
             f"SELECT COUNT(*) FROM classics WHERE {where_clause}", params
         ).fetchone()[0]

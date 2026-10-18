@@ -241,6 +241,7 @@
                 <label>分类</label>
                 <select id="quizCat">
                     <option>唐诗</option><option>宋词</option><option>宋诗</option><option>元曲</option>
+                    <option>汉赋</option><option>魏晋南北朝</option><option>明清小品</option>
                     <option>经典散文</option><option>蒙学</option><option>经部</option><option>子部</option>
                     <option>史部</option><option>集部</option><option>论语</option><option>诗经</option><option>楚辞</option>
                 </select>
@@ -282,6 +283,7 @@
                 <button class="primary-btn" onclick="searchClassics()">搜索</button>
                 <button onclick="showClassicsCategories()">分类</button>
                 <button onclick="showFavorites()">收藏夹</button>
+                <label class="check-line"><input type="checkbox" id="verifiedOnly" onchange="toggleVerifiedOnly(this.checked)"> 只看已校勘</label>
             </div>
             <div id="classicsGrid" class="classics-grid"></div>
             <div id="classicsPager" class="pagination"></div>
@@ -352,6 +354,7 @@
                     <label>分类</label>
                     <select id="expandCat">
                         <option>唐诗</option><option>宋词</option><option>宋诗</option><option>元曲</option>
+                        <option>汉赋</option><option>魏晋南北朝</option><option>明清小品</option>
                         <option>经典散文</option><option>蒙学</option><option>经部</option><option>子部</option>
                         <option>史部</option><option>集部</option><option>论语</option><option>诗经</option><option>楚辞</option>
                     </select>
@@ -383,6 +386,7 @@
                     <label>分类</label>
                     <select id="previewCat">
                         <option>唐诗</option><option>宋词</option><option>宋诗</option><option>元曲</option>
+                        <option>汉赋</option><option>魏晋南北朝</option><option>明清小品</option>
                         <option>经典散文</option><option>蒙学</option><option>经部</option><option>子部</option>
                         <option>史部</option><option>集部</option><option>论语</option><option>诗经</option><option>楚辞</option>
                     </select>

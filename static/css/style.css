@@ -648,6 +648,8 @@ button.chip:hover { border-color: var(--accent); color: var(--accent); }
 }
 
 .classics-toolbar input { flex: 1; min-width: 220px; }
+.classics-toolbar .check-line { flex: 0 0 auto; }
+.classics-toolbar .check-line input { flex: 0 0 auto; min-width: 0; }
 
 .classics-grid {
     display: grid;

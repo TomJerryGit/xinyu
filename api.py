@@ -124,22 +124,24 @@ class ClassicsMixin:
         self.cache_mgr.set(k, r, ttl=600)
         return r
 
-    def search_classics_page(self, kw: str = "", cat: str = "", dyn: str = "", au: str = "", page: int = 1, page_size: int = 20) -> Dict:
+    def search_classics_page(self, kw: str = "", cat: str = "", dyn: str = "", au: str = "", page: int = 1, page_size: int = 20, verified_only: bool = False) -> Dict:
         """服务端分页检索，避免一次把整库数据传到前端。"""
         page = max(1, int(page or 1))
         page_size = min(100, max(5, int(page_size or 20)))
-        key = f"page:{kw}:{cat}:{dyn}:{au}:{page}:{page_size}"
+        verified_only = bool(verified_only)
+        key = f"page:{kw}:{cat}:{dyn}:{au}:{page}:{page_size}:{int(verified_only)}"
         cached = self.cache_mgr.get(key)
         if cached:
             return cached
-        total = self.classics_db.count_search(kw, cat, dyn, au)
-        items = self.classics_db.search(kw, cat, dyn, au, None, page_size, (page - 1) * page_size)
+        total = self.classics_db.count_search(kw, cat, dyn, au, None, verified_only)
+        items = self.classics_db.search(kw, cat, dyn, au, None, page_size, (page - 1) * page_size, verified_only)
         result = {
             "total": total,
             "page": page,
             "page_size": page_size,
             "pages": max(1, (total + page_size - 1) // page_size),
             "items": items,
+            "verified_only": verified_only,
         }
         self.cache_mgr.set(key, result, ttl=300)
         return result

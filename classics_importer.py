@@ -74,6 +74,31 @@ class ClassicsImporter:
         except (OSError, ValueError):
             return 0
         records = payload.get("records", []) if isinstance(payload, dict) else payload
+        # 空库首启：批量写入，避免 1.4 万次逐条查询/提交
+        if self.db.get_total_count() == 0:
+            rows = []
+            for item in records if isinstance(records, list) else []:
+                valid = self._validate_item(dict(item))
+                if valid:
+                    rows.append((
+                        valid.get("id"), valid.get("title"), valid.get("author", "佚名"),
+                        valid.get("dynasty", "未知"), valid.get("category", "未分类"),
+                        valid.get("subcategory", ""), valid.get("content", ""),
+                        valid.get("translation", ""), valid.get("annotation", ""),
+                        valid.get("tags", ""), valid.get("source", ""),
+                        len(valid.get("content", "")), int(valid.get("is_famous", 0) or 0),
+                        int(valid.get("difficulty_level", 2) or 2), int(valid.get("verified", 0) or 0),
+                    ))
+            if rows:
+                self.db.conn.executemany(
+                    """INSERT OR REPLACE INTO classics
+                       (id,title,author,dynasty,category,subcategory,content,translation,annotation,tags,source,
+                        char_count,is_famous,difficulty_level,verified)
+                       VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    rows,
+                )
+                self.db.conn.commit()
+            return len(rows)
         added = 0
         matched_legacy = set()
         for item in records if isinstance(records, list) else []:
