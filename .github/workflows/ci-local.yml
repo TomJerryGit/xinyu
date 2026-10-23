@@ -19,10 +19,7 @@ jobs:
     timeout-minutes: 30
     steps:
       - name: Test local D:\xinyu workspace
-        shell: powershell
+        shell: cmd
         run: |
-          $ErrorActionPreference = 'Stop'
-          Set-Location 'D:\xinyu'
-          & 'D:\Programs\Python\Python38\python.exe' -m py_compile api.py classics_database.py question_bank.py
-          & 'D:\Programs\Python\Python38\python.exe' -m pytest -q
-          & 'C:\Users\PL\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\node\bin\node.exe' --check static/js/main.js
+          cd /d D:\xinyu
+          D:\Programs\Python\Python38\python.exe -m py_compile api.py classics_database.py question_bank.py && D:\Programs\Python\Python38\python.exe -m pytest -q && C:\Users\PL\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\node\bin\node.exe --check static/js/main.js
