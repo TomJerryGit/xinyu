@@ -1028,7 +1028,7 @@ async function loadIntertext(data) {
             return;
         }
         $('teachIntertext').innerHTML = '<h4>互文网络</h4>' + state.intertext.map((item) =>
-            `<div class="teaching-line"><b>${esc(item.title || '')}</b> <span>${esc(item.author || '')}</span><small class="muted">${esc(item.relation || '')}${item.reason ? ' · ' + esc(item.reason) : ''}</small></div>`
+            `<div class="teaching-line"><b>${esc(item.title || '')}</b> <span>${esc(item.author || '')}</span><small class="muted">${esc(item.relation || '')}${item.reason ? ' · ' + esc(item.reason) : ''}${item.review_status === 'pending' ? ' · 待校勘' : ''}</small></div>`
         ).join('');
     }
 }
@@ -1898,8 +1898,12 @@ async function loadAiReview() {
     }
     panel.innerHTML = rows.map((row) => {
         const payload = row.payload || {};
+        let summary = '';
+        if (row.kind === 'translation_draft') summary = `译文：${String(payload.translation || '').slice(0, 100)}`;
+        else if (row.kind === 'reading_question') summary = `[${esc(payload.cognitive || '')}] ${String(payload.question || '').slice(0, 100)}`;
+        else summary = String((payload.objectives || []).join(' / ') || payload.summary || '').slice(0, 120);
         return `<div class="backup-row"><div><b>${esc(row.kind)}</b> · ${esc(payload.title || '')}<br>
-            <span class="muted">${esc((payload.objectives || []).join(' / ')).slice(0, 120)}</span></div>
+            <span class="muted">${esc(summary)}</span></div>
             <div class="action-row"><button onclick="reviewAiItem(${row.id},'approved')">通过</button>
             <button onclick="reviewAiItem(${row.id},'rejected')">拒绝</button></div></div>`;
     }).join('');

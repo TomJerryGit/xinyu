@@ -28,7 +28,7 @@ def main():
             if row["id"] not in seen:
                 seen.add(row["id"])
                 related.append({"id": row["id"], "title": row["title"], "author": row["author"],
-                                "relation": "同作者", "reason": "同一诗人的不同作品"})
+                                "relation": "同作者", "reason": "同一诗人的不同作品", "review_status": "pending"})
         # 同分类近篇幅
         for row in conn.execute(
             "SELECT id,title,author,category,char_count FROM classics WHERE category=? AND id<>? ORDER BY ABS(char_count-?) LIMIT 3",
@@ -39,7 +39,7 @@ def main():
             if row["id"] not in seen:
                 seen.add(row["id"])
                 related.append({"id": row["id"], "title": row["title"], "author": row["author"],
-                                "relation": "同分类", "reason": f"同属{seed['category']}"})
+                                "relation": "同分类", "reason": f"同属{seed['category']}", "review_status": "pending"})
         links[seed["id"]] = related[:5]
     payload = {"version": 1, "count": len(links), "links": links}
     with open(OUT, "w", encoding="utf-8") as handle:

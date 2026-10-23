@@ -28,6 +28,9 @@ class ClassicsDatabase:
             if "cognitive" not in columns:
                 self.conn.execute("ALTER TABLE question_bank ADD COLUMN cognitive TEXT DEFAULT '识记'")
                 self.conn.commit()
+            if "rubric" not in columns:
+                self.conn.execute("ALTER TABLE question_bank ADD COLUMN rubric TEXT DEFAULT '[]'")
+                self.conn.commit()
         except sqlite3.Error:
             pass
         self._migrator = Migrator(self.conn, db_path, "classics")
@@ -108,6 +111,7 @@ class ClassicsDatabase:
                 answer TEXT DEFAULT '',
                 explanation TEXT DEFAULT '',
                 cognitive TEXT DEFAULT '识记',
+                rubric TEXT DEFAULT '[]',
                 source TEXT DEFAULT 'rule',
                 verified INTEGER DEFAULT 1,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -551,6 +555,20 @@ class ClassicsDatabase:
         )
         self.conn.commit()
         return True
+
+    def get_ai_review(self, review_id):
+        row = self.conn.execute(
+            "SELECT id,kind,classic_id,payload,status,reviewer,notes,created_at FROM ai_review_queue WHERE id=?",
+            (int(review_id),),
+        ).fetchone()
+        if not row:
+            return None
+        item = dict(row)
+        try:
+            item["payload"] = json.loads(item["payload"])
+        except (TypeError, ValueError):
+            item["payload"] = {}
+        return item
 
     def update_verified(self, classic_id, verified=1):
         self.conn.execute(

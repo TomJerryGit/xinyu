@@ -38,6 +38,7 @@ def load_prebuilt(category):
                 "options": row.get("options", []), "answer": int(row.get("answer", 0)),
                 "explanation": row.get("explanation", ""), "id": row.get("id", ""),
                 "classic_id": row.get("classic_id", ""), "cognitive": row.get("cognitive", "识记"),
+                "rubric": row.get("rubric", "[]"),
             })
         except (KeyError, TypeError, ValueError):
             continue
@@ -53,7 +54,7 @@ def export_prebuilt(conn):
     for category in categories:
         rows = []
         for row in conn.execute(
-            """SELECT id,classic_id,type,question,options,answer,explanation,cognitive
+            """SELECT id,classic_id,type,question,options,answer,explanation,cognitive,rubric
                FROM question_bank WHERE category=? ORDER BY id""",
             (category,),
         ):
@@ -66,6 +67,7 @@ def export_prebuilt(conn):
                 "question": row["question"], "options": options, "answer": row["answer"],
                 "explanation": row["explanation"],
                 "cognitive": row["cognitive"] if "cognitive" in row.keys() else "识记",
+                "rubric": row["rubric"] if "rubric" in row.keys() else "[]",
             })
         path = os.path.join(BANK_DIR, f"{_safe_name(category)}.json")
         with open(path, "w", encoding="utf-8") as handle:
@@ -168,6 +170,7 @@ def sample_bank(conn, category="", count=5):
             "answer": int(row["answer"]), "explanation": row["explanation"],
             "id": row["id"], "classic_id": row["classic_id"],
             "cognitive": row["cognitive"] if "cognitive" in row.keys() else "识记",
+            "rubric": row["rubric"] if "rubric" in row.keys() else "[]",
         })
     return questions
 

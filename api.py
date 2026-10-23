@@ -1152,8 +1152,45 @@ class TeachingMixin:
         return self.classics_db.list_ai_review(status)
 
     def review_ai_queue(self, review_id: str, decision: str, reviewer: str = "", notes: str = "") -> Dict:
+        item = self.classics_db.get_ai_review(review_id)
+        if not item:
+            return {"success": False, "message": "审核项不存在"}
         ok = self.classics_db.review_ai_item(review_id, decision, reviewer, notes)
-        return {"success": ok, "message": "已审核" if ok else "审核参数错误"}
+        if not ok:
+            return {"success": False, "message": "审核参数错误"}
+        if decision == "approved":
+            payload = item.get("payload", {}) or {}
+            kind = item.get("kind")
+            try:
+                if kind == "translation_draft":
+                    cid = payload.get("classic_id") or item.get("classic_id")
+                    self.classics_db.conn.execute(
+                        """UPDATE classics SET translation=?, annotation=CASE WHEN ?<>'' THEN ? ELSE annotation END,
+                           translation_status='approved',
+                           annotation_status=CASE WHEN ?<>'' THEN 'approved' ELSE annotation_status END,
+                           reviewed_by=?, reviewed_at=CURRENT_TIMESTAMP, updated_at=CURRENT_TIMESTAMP
+                           WHERE id=?""",
+                        (payload.get("translation", ""), payload.get("annotation", ""), payload.get("annotation", ""),
+                         payload.get("annotation", ""), reviewer or "reviewer", cid),
+                    )
+                    self.classics_db.conn.commit()
+                elif kind in ("reading_question", "quiz_question"):
+                    cid = payload.get("classic_id") or item.get("classic_id")
+                    work = self.classics_db.get_by_id(cid) or {}
+                    self.classics_db.conn.execute(
+                        """INSERT OR REPLACE INTO question_bank
+                           (id,classic_id,category,dynasty,difficulty,type,question,options,answer,explanation,
+                            cognitive,rubric,source,verified)
+                           VALUES (?,?,?,?,?,?,?,?,?,?,?,?, 'reviewed',1)""",
+                        (f"review_{review_id}", cid, work.get("category", ""), work.get("dynasty", ""),
+                         2, payload.get("type", "简答"), payload.get("question", ""), "[]",
+                         payload.get("answer", ""), payload.get("explanation", ""),
+                         payload.get("cognitive", "分析"), json.dumps(payload.get("rubric", []), ensure_ascii=False)),
+                    )
+                    self.classics_db.conn.commit()
+            except Exception as exc:
+                return {"success": True, "message": f"审核已记录，写入失败：{str(exc)[:80]}"}
+        return {"success": True, "message": "已通过" if decision == "approved" else "已拒绝"}
 
     def get_intertext(self, classic_id: str) -> List[Dict]:
         try:
@@ -1304,6 +1341,25 @@ class TeachingMixin:
         ).fetchall()
         questions = []
         seen = set()
+        approved = self.classics_db.conn.execute(
+            """SELECT classic_id,question,answer,explanation,cognitive,rubric
+               FROM question_bank
+               WHERE category=? AND type='简答' AND verified=1 AND cognitive IN ('理解','分析')
+               ORDER BY RANDOM() LIMIT ?""",
+            (category, max(1, count)),
+        ).fetchall()
+        for row in approved:
+            try:
+                rubric = json.loads(row["rubric"] or "[]")
+            except (TypeError, ValueError):
+                rubric = []
+            questions.append({
+                "type": "简答", "question": row["question"], "options": [],
+                "answer": row["answer"], "explanation": row["explanation"] or "开放题，按量规人工评分。",
+                "rubric": rubric, "auto_gradable": False,
+                "cognitive": row["cognitive"] or "分析", "classic_id": row["classic_id"],
+            })
+            seen.add(row["question"])
         for row in rows:
             if len(questions) >= count:
                 break
