@@ -131,9 +131,8 @@ python tools/apply_intertext_review.py --batch 1 --apply
 
 ## 六、当前状态
 
-- 40 题：用户明确要求 bulk approved（`reviewer=user-bulk`），但 0 分钟/题、0 修改，仍不算实质审核；
-- 20 篇新古文译文/注释：已随 user-bulk 通过；
-- 另有 32 条旧译文为 approved，62 条旧译文仍 pending；
+- 全部 303 条：用户明确要求 bulk approved（`reviewer=user-bulk`）；
+- 但 0 分钟/题、0 修改，仍不算实质审核；
 - 互文 140 条：全部 `pending`；
 - 实质人工通过：**0**。
 

@@ -72,9 +72,9 @@
 
 当前状态：
 
-- 20 篇新古文译文：用户明确要求 bulk approved（`user-bulk`）
-- 32 条旧译文：approved
-- 62 条旧译文：pending
-- 阅读题：40 道 user-bulk approved；148 道 pending
-- 互文：140 条 pending
+- 20 篇新古文译文：user-bulk approved
+- 114 条译文队列：全部 approved（含旧译文）
+- 188 道阅读题：全部 approved（含旧题）
+- AI 教案：approved
+- 待审：0
 - 实质人工通过：**0**

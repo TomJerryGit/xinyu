@@ -14,9 +14,9 @@
 - 统计：`python tools/review_batch.py --stats`
 - 回写：`python tools/apply_review_batch.py --apply`
 
-状态：**用户明确要求“直接标记为通过”，已 bulk approved 40/40。**
+状态：**用户明确要求全部直接标记为通过；当前 303 条全部 approved（user-bulk）。**
 
-记录：`reviewer=user-bulk`，`notes=用户明确要求直接标记为通过；未逐条实质审核`。平均 0 分钟/题、修改率 0%，仍不能当作教师实质审题。
+记录：`reviewer=user-bulk`，`notes=用户明确要求直接标记为通过；未逐条实质审核`。平均 0 分钟/题、修改率 0%，因此仍然不能当作教师实质审题，也不能对外宣称“教学质量已验证”。
 
 这 40 题不是“概括主要内容/表达什么情感”的模板题，而是按每篇原文命制的具体题（如“疑”的释义、动作顺序、以声衬静、典故作用等）。机器预检 0 条硬错误。
 
@@ -37,9 +37,10 @@
 | 理解题草案 | 100 |
 | 分析题草案 | 100 |
 | 合计 | **200 道** |
-| 软件 approved | **40**（user-bulk） |
+| 软件 approved | **188**（user-bulk） |
 | 实质人工审核 | **0** |
-| 当前待审 | **148** |
+| 当前待审 | **0** |
+| 随元曲精简移除 | **12** |
 
 来源：
 
@@ -62,10 +63,10 @@ data/reviews/reading_questions_100.jsonl
 
 | 类型 | 数量 | 说明 |
 |---|---:|---|
-| `reading_question` | 148 | 旧题待审（40 道逐篇命制已 user-bulk） |
-| `translation_draft` | 62 | 旧译文待审（20 篇新古文 + 32 条旧译文已 user-bulk） |
-| `teaching_plan` | 1 | AI 教案 |
-| 合计 | **211** | 全部待人工审核 |
+| `reading_question` | 0 | 188 条全部 approved（user-bulk） |
+| `translation_draft` | 0 | 114 条全部 approved（user-bulk） |
+| `teaching_plan` | 0 | 1 条 approved（user-bulk） |
+| 合计 | **0** | 当前无 pending；303 条均记录 user-bulk |
 
 审核入口：数据管理 →「AI 审核队列」。
 
