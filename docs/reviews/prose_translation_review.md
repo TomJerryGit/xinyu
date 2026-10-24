@@ -72,8 +72,9 @@
 
 当前状态：
 
-- 20 篇新古文译文：`pending`
-- 94 条旧译文点击通过：已回退为 `pending`
-- 阅读题：188 道 `pending`（40 道重点）
-- 互文：140 条 `pending`
+- 20 篇新古文译文：用户明确要求 bulk approved（`user-bulk`）
+- 32 条旧译文：approved
+- 62 条旧译文：pending
+- 阅读题：40 道 user-bulk approved；148 道 pending
+- 互文：140 条 pending
 - 实质人工通过：**0**

@@ -67,7 +67,7 @@
 已重建：
 
 ```text
-question_bank      39,062 → 10,513
+question_bank      39,062 → 10,553（含 40 道 user-bulk 通过题）
 classics_seed.json 9.45 MB → 3.53 MB
 teaching_plans     13,841 → 3,682（清理孤儿）
 ai_review_queue    301 → 303（点击通过全部回退；20 篇古文译文/注释入队）
