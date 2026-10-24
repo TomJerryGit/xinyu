@@ -132,8 +132,8 @@ python tools/apply_intertext_review.py --batch 1 --apply
 ## 六、当前状态
 
 - 全部 303 条：用户明确要求 bulk approved（`reviewer=user-bulk`）；
-- 但 0 分钟/题、0 修改，仍不算实质审核；
-- 互文 140 条：全部 `pending`；
+- 互文 140 条：用户明确要求直通，全部 `approved`（`user-bulk`）；
+- 但 0 分钟/题、0 修改、0 逐条校勘，仍不算实质审核；
 - 实质人工通过：**0**。
 
 不要因为队列状态是 approved 就说“教学质量已验证”。

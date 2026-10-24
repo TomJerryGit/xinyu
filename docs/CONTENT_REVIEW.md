@@ -92,7 +92,10 @@ CSV 入口仍保留，适合离线批量审核。
 |---|---:|
 | 名篇 | 30 |
 | 机器关系 | 140 |
-| 人工校勘通过 | **0** |
+| 软件 approved | **140**（user-bulk） |
+| 实质人工校勘 | **0** |
+
+记录：`resources/intertext.json` 顶层与每条关系均标 `review_status=approved`、`reviewed_by=user-bulk`，但这是用户授权直通，不是逐条考证。
 
 文件：
 
