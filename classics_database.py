@@ -31,6 +31,13 @@ class ClassicsDatabase:
             if "rubric" not in columns:
                 self.conn.execute("ALTER TABLE question_bank ADD COLUMN rubric TEXT DEFAULT '[]'")
                 self.conn.commit()
+            review_columns = {row[1] for row in self.conn.execute("PRAGMA table_info(ai_review_queue)")}
+            if "review_minutes" not in review_columns:
+                self.conn.execute("ALTER TABLE ai_review_queue ADD COLUMN review_minutes REAL DEFAULT 0")
+                self.conn.commit()
+            if "edited" not in review_columns:
+                self.conn.execute("ALTER TABLE ai_review_queue ADD COLUMN edited INTEGER DEFAULT 0")
+                self.conn.commit()
         except sqlite3.Error:
             pass
         self._migrator = Migrator(self.conn, db_path, "classics")
@@ -86,6 +93,8 @@ class ClassicsDatabase:
                 status TEXT DEFAULT 'pending',
                 reviewer TEXT DEFAULT '',
                 notes TEXT DEFAULT '',
+                review_minutes REAL DEFAULT 0,
+                edited INTEGER DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 reviewed_at TIMESTAMP
             );
@@ -531,7 +540,7 @@ class ClassicsDatabase:
 
     def list_ai_review(self, status="pending", limit=50):
         rows = self.conn.execute(
-            """SELECT id,kind,classic_id,payload,status,reviewer,notes,created_at
+            """SELECT id,kind,classic_id,payload,status,reviewer,notes,review_minutes,edited,created_at
                FROM ai_review_queue WHERE status=? ORDER BY id DESC LIMIT ?""",
             (status, int(limit)),
         ).fetchall()
@@ -545,20 +554,39 @@ class ClassicsDatabase:
             result.append(item)
         return result
 
-    def review_ai_item(self, review_id, decision, reviewer="", notes=""):
+    def review_ai_item(self, review_id, decision, reviewer="", notes="", review_minutes=0, edited=0):
         if decision not in ("approved", "rejected"):
             return False
         self.conn.execute(
-            """UPDATE ai_review_queue SET status=?, reviewer=?, notes=?, reviewed_at=CURRENT_TIMESTAMP
-               WHERE id=?""",
-            (decision, reviewer or "", notes or "", int(review_id)),
+            """UPDATE ai_review_queue SET status=?, reviewer=?, notes=?, review_minutes=?, edited=?,
+               reviewed_at=CURRENT_TIMESTAMP WHERE id=?""",
+            (decision, reviewer or "", notes or "", float(review_minutes or 0), int(edited or 0), int(review_id)),
         )
         self.conn.commit()
         return True
 
+    def get_review_stats(self):
+        rows = self.conn.execute(
+            """SELECT kind,status,COUNT(*) n,AVG(review_minutes) avg_minutes,SUM(edited) edited
+               FROM ai_review_queue GROUP BY kind,status ORDER BY kind,status"""
+        ).fetchall()
+        stats = [dict(row) for row in rows]
+        reviewed = sum(r["n"] for r in stats if r["status"] in ("approved", "rejected"))
+        approved = sum(r["n"] for r in stats if r["status"] == "approved")
+        edited = sum(r["edited"] or 0 for r in stats if r["status"] in ("approved", "rejected"))
+        minutes = sum((r["avg_minutes"] or 0) * r["n"] for r in stats if r["status"] in ("approved", "rejected"))
+        return {
+            "groups": stats,
+            "reviewed": reviewed,
+            "approved": approved,
+            "approval_rate": round(approved / reviewed * 100, 1) if reviewed else 0,
+            "edit_rate": round(edited / reviewed * 100, 1) if reviewed else 0,
+            "avg_minutes": round(minutes / reviewed, 2) if reviewed else 0,
+        }
+
     def get_ai_review(self, review_id):
         row = self.conn.execute(
-            "SELECT id,kind,classic_id,payload,status,reviewer,notes,created_at FROM ai_review_queue WHERE id=?",
+            "SELECT id,kind,classic_id,payload,status,reviewer,notes,review_minutes,edited,created_at FROM ai_review_queue WHERE id=?",
             (int(review_id),),
         ).fetchone()
         if not row:

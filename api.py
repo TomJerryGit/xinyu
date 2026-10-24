@@ -1151,15 +1151,26 @@ class TeachingMixin:
     def get_ai_review_queue(self, status: str = "pending") -> List[Dict]:
         return self.classics_db.list_ai_review(status)
 
-    def review_ai_queue(self, review_id: str, decision: str, reviewer: str = "", notes: str = "") -> Dict:
+    def get_ai_review_stats(self) -> Dict:
+        return self.classics_db.get_review_stats()
+
+    def review_ai_queue(self, review_id: str, decision: str, reviewer: str = "", notes: str = "", edits_json: str = "", review_minutes: float = 0, edited: bool = False) -> Dict:
         item = self.classics_db.get_ai_review(review_id)
         if not item:
             return {"success": False, "message": "审核项不存在"}
-        ok = self.classics_db.review_ai_item(review_id, decision, reviewer, notes)
+        payload = item.get("payload", {}) or {}
+        if edits_json:
+            try:
+                changes = json.loads(edits_json) if isinstance(edits_json, str) else dict(edits_json or {})
+                if isinstance(changes, dict):
+                    payload.update(changes)
+                    edited = True
+            except (TypeError, ValueError):
+                pass
+        ok = self.classics_db.review_ai_item(review_id, decision, reviewer, notes, review_minutes, 1 if edited else 0)
         if not ok:
             return {"success": False, "message": "审核参数错误"}
         if decision == "approved":
-            payload = item.get("payload", {}) or {}
             kind = item.get("kind")
             try:
                 if kind == "translation_draft":

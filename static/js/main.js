@@ -48,6 +48,10 @@ const state = {
     wordNotes: null,
     wordAllusions: [],
     intertext: [],
+    reviewRows: [],
+    reviewItem: null,
+    reviewStart: 0,
+    reviewTimer: null,
 };
 
 /* ---------------- 基础工具 ---------------- */
@@ -1892,27 +1896,88 @@ async function loadAiReview() {
     const panel = $('aiReviewPanel');
     if (!panel) return;
     const rows = await guarded('加载审核队列', () => callApi('get_ai_review_queue', 'pending'), { toastError: false });
-    if (!Array.isArray(rows) || !rows.length) {
+    state.reviewRows = Array.isArray(rows) ? rows : [];
+    const stats = await guarded('审核统计', () => callApi('get_ai_review_stats'), { toastError: false });
+    if ($('reviewStats') && stats) {
+        $('reviewStats').textContent = `已审 ${stats.reviewed || 0} · 通过 ${stats.approved || 0} · 通过率 ${stats.approval_rate || 0}% · 平均 ${stats.avg_minutes || 0} 分钟/题 · 修改率 ${stats.edit_rate || 0}%`;
+    }
+    if (!state.reviewRows.length) {
         panel.innerHTML = '<p class="muted">暂无待审核 AI 内容</p>';
         return;
     }
-    panel.innerHTML = rows.map((row) => {
+    panel.innerHTML = state.reviewRows.map((row) => {
         const payload = row.payload || {};
         let summary = '';
-        if (row.kind === 'translation_draft') summary = `译文：${String(payload.translation || '').slice(0, 100)}`;
+        if (row.kind === 'translation_draft') summary = `译文：${String(payload.translation || '').slice(0, 90)}`;
         else if (row.kind === 'reading_question') summary = `[${esc(payload.cognitive || '')}] ${String(payload.question || '').slice(0, 100)}`;
         else summary = String((payload.objectives || []).join(' / ') || payload.summary || '').slice(0, 120);
         return `<div class="backup-row"><div><b>${esc(row.kind)}</b> · ${esc(payload.title || '')}<br>
             <span class="muted">${esc(summary)}</span></div>
-            <div class="action-row"><button onclick="reviewAiItem(${row.id},'approved')">通过</button>
-            <button onclick="reviewAiItem(${row.id},'rejected')">拒绝</button></div></div>`;
+            <div class="action-row"><button class="primary-btn" onclick="openReviewConsole(${row.id})">审核</button></div></div>`;
     }).join('');
 }
 
-async function reviewAiItem(id, decision) {
-    const result = await guarded('审核 AI 内容', () => callApi('review_ai_queue', String(id), decision, 'teacher', ''));
+function reviewTimerText(seconds) {
+    const m = String(Math.floor(seconds / 60)).padStart(2, '0');
+    const s = String(Math.floor(seconds % 60)).padStart(2, '0');
+    return `${m}:${s}`;
+}
+
+function openReviewConsole(id) {
+    const row = (state.reviewRows || []).find((item) => Number(item.id) === Number(id));
+    if (!row) return;
+    state.reviewItem = row;
+    state.reviewStart = Date.now();
+    if (state.reviewTimer) clearInterval(state.reviewTimer);
+    const tick = () => {
+        if ($('reviewTimer')) $('reviewTimer').textContent = reviewTimerText((Date.now() - state.reviewStart) / 1000);
+    };
+    state.reviewTimer = setInterval(tick, 1000);
+    tick();
+    const payload = row.payload || {};
+    const isTranslation = row.kind === 'translation_draft';
+    if ($('reviewTitle')) $('reviewTitle').textContent = payload.title || `审核 #${row.id}`;
+    if ($('reviewKind')) $('reviewKind').textContent = isTranslation ? '译文草案' : (row.kind === 'reading_question' ? '阅读题草案' : row.kind);
+    if ($('reviewQuestion')) $('reviewQuestion').value = isTranslation ? (payload.translation || '') : (payload.question || '');
+    if ($('reviewAnswer')) $('reviewAnswer').value = isTranslation ? (payload.annotation || '') : (payload.answer || '');
+    if ($('reviewerName')) $('reviewerName').value = row.reviewer || '';
+    if ($('reviewNotes')) $('reviewNotes').value = row.notes || '';
+    if ($('reviewConsole')) $('reviewConsole').classList.remove('hidden');
+}
+
+function closeReviewConsole() {
+    if (state.reviewTimer) {
+        clearInterval(state.reviewTimer);
+        state.reviewTimer = null;
+    }
+    if ($('reviewConsole')) $('reviewConsole').classList.add('hidden');
+    state.reviewItem = null;
+}
+
+async function decideReview(decision) {
+    const row = state.reviewItem;
+    if (!row) return;
+    const payload = row.payload || {};
+    const isTranslation = row.kind === 'translation_draft';
+    const question = $('reviewQuestion') ? $('reviewQuestion').value.trim() : '';
+    const answer = $('reviewAnswer') ? $('reviewAnswer').value.trim() : '';
+    const edits = isTranslation
+        ? { translation: question, annotation: answer }
+        : { question, answer };
+    const original = isTranslation
+        ? `${payload.translation || ''}\n${payload.annotation || ''}`
+        : `${payload.question || ''}\n${payload.answer || ''}`;
+    const edited = `${question}\n${answer}` !== original;
+    const minutes = Math.max(0, (Date.now() - state.reviewStart) / 60000);
+    const result = await guarded('提交审核', () => callApi(
+        'review_ai_queue', String(row.id), decision,
+        $('reviewerName') ? $('reviewerName').value.trim() : 'teacher',
+        $('reviewNotes') ? $('reviewNotes').value.trim() : '',
+        JSON.stringify(edits), minutes, edited
+    ));
     if (result && result.success) {
-        showToast(decision === 'approved' ? '已通过' : '已拒绝', 'success');
+        showToast(result.message || '已审核', 'success');
+        closeReviewConsole();
         loadAiReview();
     }
 }

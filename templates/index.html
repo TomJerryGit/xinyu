@@ -385,8 +385,25 @@
 
             <section class="card">
                 <header class="card-head"><h2>AI 审核队列</h2><button class="ghost-btn" onclick="loadAiReview()">刷新</button></header>
+                <div id="reviewStats" class="result-meta">审核统计加载中...</div>
                 <div id="aiReviewPanel" class="list-stack"><p class="muted">点击刷新加载待审核内容</p></div>
             </section>
+
+            <div id="reviewConsole" class="teach-editor hidden">
+                <div class="teach-editor-card">
+                    <header><b id="reviewTitle">审核</b><button class="btn-icon" onclick="closeReviewConsole()">关闭</button></header>
+                    <p class="muted"><span id="reviewKind"></span> · <span id="reviewTimer">00:00</span></p>
+                    <label>题目 / 译文</label><textarea id="reviewQuestion"></textarea>
+                    <label>答案 / 注释</label><textarea id="reviewAnswer"></textarea>
+                    <label>审核人</label><input id="reviewerName" placeholder="审核人">
+                    <label>备注</label><textarea id="reviewNotes" placeholder="问题、修改理由..."></textarea>
+                    <div class="action-row">
+                        <button class="primary-btn" onclick="decideReview('approved')">通过</button>
+                        <button onclick="decideReview('rejected')">拒绝</button>
+                        <button onclick="closeReviewConsole()">取消</button>
+                    </div>
+                </div>
+            </div>
 
             <div class="dash-columns">
                 <section class="card">
