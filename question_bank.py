@@ -50,6 +50,13 @@ def export_prebuilt(conn):
     os.makedirs(BANK_DIR, exist_ok=True)
     conn.row_factory = sqlite3.Row
     categories = [r[0] for r in conn.execute("SELECT DISTINCT category FROM question_bank")]
+    keep_files = {f"{_safe_name(category)}.json" for category in categories}
+    for name in os.listdir(BANK_DIR):
+        if name.endswith(".json") and name not in keep_files:
+            try:
+                os.remove(os.path.join(BANK_DIR, name))
+            except OSError:
+                pass
     total = 0
     for category in categories:
         rows = []

@@ -1163,18 +1163,20 @@ class TeachingMixin:
             try:
                 changes = json.loads(edits_json) if isinstance(edits_json, str) else dict(edits_json or {})
                 if isinstance(changes, dict):
-                    payload.update(changes)
-                    edited = True
+                    for key, value in changes.items():
+                        if key in ("translation", "annotation", "question", "answer", "explanation", "type", "cognitive"):
+                            if str(payload.get(key, "")) != str(value):
+                                edited = True
+                            payload[key] = value
             except (TypeError, ValueError):
                 pass
-        ok = self.classics_db.review_ai_item(review_id, decision, reviewer, notes, review_minutes, 1 if edited else 0)
-        if not ok:
-            return {"success": False, "message": "审核参数错误"}
         if decision == "approved":
             kind = item.get("kind")
             try:
                 if kind == "translation_draft":
                     cid = payload.get("classic_id") or item.get("classic_id")
+                    if not cid:
+                        return {"success": False, "message": "缺少作品 id，无法写入译文"}
                     self.classics_db.conn.execute(
                         """UPDATE classics SET translation=?, annotation=CASE WHEN ?<>'' THEN ? ELSE annotation END,
                            translation_status='approved',
@@ -1184,9 +1186,10 @@ class TeachingMixin:
                         (payload.get("translation", ""), payload.get("annotation", ""), payload.get("annotation", ""),
                          payload.get("annotation", ""), reviewer or "reviewer", cid),
                     )
-                    self.classics_db.conn.commit()
                 elif kind in ("reading_question", "quiz_question"):
                     cid = payload.get("classic_id") or item.get("classic_id")
+                    if not cid or not payload.get("question"):
+                        return {"success": False, "message": "缺少题目或作品 id，无法写入题库"}
                     work = self.classics_db.get_by_id(cid) or {}
                     self.classics_db.conn.execute(
                         """INSERT OR REPLACE INTO question_bank
@@ -1198,9 +1201,16 @@ class TeachingMixin:
                          payload.get("answer", ""), payload.get("explanation", ""),
                          payload.get("cognitive", "分析"), json.dumps(payload.get("rubric", []), ensure_ascii=False)),
                     )
-                    self.classics_db.conn.commit()
+                self.classics_db.conn.commit()
             except Exception as exc:
-                return {"success": True, "message": f"审核已记录，写入失败：{str(exc)[:80]}"}
+                try:
+                    self.classics_db.conn.rollback()
+                except Exception:
+                    pass
+                return {"success": False, "message": f"审核未写入：{str(exc)[:100]}"}
+        ok = self.classics_db.review_ai_item(review_id, decision, reviewer, notes, review_minutes, 1 if edited else 0)
+        if not ok:
+            return {"success": False, "message": "审核参数错误"}
         return {"success": True, "message": "已通过" if decision == "approved" else "已拒绝"}
 
     def get_intertext(self, classic_id: str) -> List[Dict]:

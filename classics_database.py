@@ -38,6 +38,16 @@ class ClassicsDatabase:
             if "edited" not in review_columns:
                 self.conn.execute("ALTER TABLE ai_review_queue ADD COLUMN edited INTEGER DEFAULT 0")
                 self.conn.commit()
+            classic_columns = {row[1] for row in self.conn.execute("PRAGMA table_info(classics)")}
+            for name, sql in (
+                ("translation_status", "ALTER TABLE classics ADD COLUMN translation_status TEXT DEFAULT ''"),
+                ("annotation_status", "ALTER TABLE classics ADD COLUMN annotation_status TEXT DEFAULT ''"),
+                ("reviewed_by", "ALTER TABLE classics ADD COLUMN reviewed_by TEXT DEFAULT ''"),
+                ("reviewed_at", "ALTER TABLE classics ADD COLUMN reviewed_at TIMESTAMP"),
+            ):
+                if name not in classic_columns:
+                    self.conn.execute(sql)
+                    self.conn.commit()
         except sqlite3.Error:
             pass
         self._migrator = Migrator(self.conn, db_path, "classics")
@@ -67,6 +77,10 @@ class ClassicsDatabase:
                 content TEXT NOT NULL DEFAULT '',
                 translation TEXT DEFAULT '',
                 annotation TEXT DEFAULT '',
+                translation_status TEXT DEFAULT '',
+                annotation_status TEXT DEFAULT '',
+                reviewed_by TEXT DEFAULT '',
+                reviewed_at TIMESTAMP,
                 tags TEXT DEFAULT '',
                 source TEXT DEFAULT '',
                 char_count INTEGER DEFAULT 0,
