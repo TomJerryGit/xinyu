@@ -8,18 +8,21 @@
 
 已切出可计时审核包：
 
+- `docs/reviews/batch20_curated.jsonl`（逐篇命制题）
 - `docs/reviews/batch20_questions.csv`
-- `docs/reviews/batch20_questions.jsonl`
+- `docs/reviews/batch20_precheck.md`（机器预检）
 - 统计：`python tools/review_batch.py --stats`
 - 回写：`python tools/apply_review_batch.py --apply`
 
 状态：**40 题全部 pending，人工通过 0。**
 
+这 40 题不是“概括主要内容/表达什么情感”的模板题，而是按每篇原文命制的具体题（如“疑”的释义、动作顺序、以声衬静、典故作用等）。机器预检 0 条硬错误，但仍需教师逐题确认。
+
 | 项目 | 数量 |
 |---|---:|
 | 名篇 | 20 |
-| 理解题草案 | 20 |
-| 分析题草案 | 20 |
+| 理解题 | 20 |
+| 分析题 | 20 |
 | 合计 | **40** |
 | 人工审核通过 | **0** |
 

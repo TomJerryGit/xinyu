@@ -5,7 +5,8 @@
 ## 一、材料
 
 - 题目包：`docs/reviews/batch20_questions.csv`
-- 同内容 JSONL：`docs/reviews/batch20_questions.jsonl`
+- 命制源：`docs/reviews/batch20_curated.jsonl`
+- 机器预检：`docs/reviews/batch20_precheck.md`
 - 互文第一批：`docs/reviews/intertext_batch1_10.csv`
 - 统计命令：
 

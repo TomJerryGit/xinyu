@@ -12,7 +12,7 @@ import os
 import sqlite3
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-SRC = os.path.join(BASE, "docs", "reviews", "reading_questions_100.jsonl")
+SRC = os.path.join(BASE, "docs", "reviews", "batch20_curated.jsonl")
 OUT_JSONL = os.path.join(BASE, "docs", "reviews", "batch20_questions.jsonl")
 OUT_CSV = os.path.join(BASE, "docs", "reviews", "batch20_questions.csv")
 DB = os.path.join(BASE, "data", "classics.db")
