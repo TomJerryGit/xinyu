@@ -1196,7 +1196,8 @@ class TeachingMixin:
         try:
             payload = safe_json_load(resource_path("resources", "intertext.json"), {})
             links = payload.get("links", {}) if isinstance(payload, dict) else {}
-            return links.get(classic_id, []) if isinstance(links, dict) else []
+            rows = links.get(classic_id, []) if isinstance(links, dict) else []
+            return [row for row in rows if row.get("review_status") != "rejected"]
         except Exception:
             return []
 

@@ -4,6 +4,27 @@
 
 ## 一、100 篇阅读题
 
+### 第一批 20 篇 / 40 题
+
+已切出可计时审核包：
+
+- `docs/reviews/batch20_questions.csv`
+- `docs/reviews/batch20_questions.jsonl`
+- 统计：`python tools/review_batch.py --stats`
+- 回写：`python tools/apply_review_batch.py --apply`
+
+状态：**40 题全部 pending，人工通过 0。**
+
+| 项目 | 数量 |
+|---|---:|
+| 名篇 | 20 |
+| 理解题草案 | 20 |
+| 分析题草案 | 20 |
+| 合计 | **40** |
+| 人工审核通过 | **0** |
+
+### 完整 100 篇
+
 | 项目 | 数量 |
 |---|---:|
 | 名篇 | 100 |
@@ -58,6 +79,15 @@ data/reviews/reading_questions_100.jsonl
 
 ```text
 data/reviews/intertext_30_review.csv
+docs/reviews/intertext_batch1_10.csv
+docs/reviews/intertext_batch2_10.csv
+docs/reviews/intertext_batch3_10.csv
+```
+
+回写：
+
+```powershell
+python tools/apply_intertext_review.py --batch 1 --apply
 ```
 
 当前 UI 标记「待校勘」。CSV 列：
