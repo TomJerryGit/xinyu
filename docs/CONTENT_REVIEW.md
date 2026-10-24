@@ -57,10 +57,10 @@ data/reviews/reading_questions_100.jsonl
 
 | 类型 | 数量 | 说明 |
 |---|---:|---|
-| `reading_question` | 200 | 理解/分析题草案 |
-| `translation_draft` | 100 | 译文/注释草案 |
+| `reading_question` | 144 | 40 道逐篇命制 + 104 道旧通用题（56 道随元曲精简移除） |
+| `translation_draft` | 0 | 100 条草案对应的元曲已被精简；草案文件仍保留 |
 | `teaching_plan` | 1 | AI 教案 |
-| 合计 | **301** | 全部待人工审核 |
+| 合计 | **145** | 全部待人工审核 |
 
 审核入口：数据管理 →「AI 审核队列」。
 
@@ -136,6 +136,8 @@ relation, reason, status, reviewer, notes
 ### 100 篇阅读题
 
 - 200 道全部有人工 `approved/rejected`；
+- 因元曲精简，56 道旧通用题已移除，保留 144 道待审；
+- 40 道逐篇命制题是第一批重点；
 - 通过的题进入能力卷；
 - 至少 80 道可用于真实课堂。
 
