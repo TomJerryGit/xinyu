@@ -131,10 +131,10 @@ python tools/apply_intertext_review.py --batch 1 --apply
 
 ## 六、当前状态
 
-- 40 题：软件记录 **approved 40/40**；
-- 但平均 **0.02 分钟/题**、修改率 **0%**，按本手册标准属于 **No-Go**，只能算点击测试；
-- 20 篇古文译文/注释：`pending`；
+- 40 题：已重置为 `pending`（之前点击通过不算实质审核）；
+- 20 篇古文译文/注释：`pending`，见 `docs/reviews/prose_translation_review.md`；
+- 另有 94 条旧译文点击通过也已回退为 `pending`；
 - 互文 140 条：全部 `pending`；
 - 实质人工通过：**0**。
 
-不要因为队列状态是 approved 就说“教学质量已验证”。下一步要按 75 秒/题重新审，至少修改明显不准确的答案。
+不要因为队列状态是 approved 就说“教学质量已验证”。
