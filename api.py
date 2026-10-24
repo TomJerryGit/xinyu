@@ -1367,10 +1367,21 @@ class TeachingMixin:
             """SELECT classic_id,question,answer,explanation,cognitive,rubric
                FROM question_bank
                WHERE category=? AND type='简答' AND verified=1 AND cognitive IN ('理解','分析')
-               ORDER BY RANDOM() LIMIT ?""",
-            (category, max(1, count)),
+               ORDER BY RANDOM() LIMIT 500""",
+            (category,),
         ).fetchall()
-        for row in approved:
+
+        def _is_template(text):
+            return (text.startswith("结合原文，用自己的话概括")
+                    or "表达了怎样的情感或主旨？结合原文" in text)
+
+        specific = [row for row in approved if not _is_template(row["question"] or "")]
+        generic = [row for row in approved if _is_template(row["question"] or "")]
+        for row in specific + generic:
+            if len(questions) >= count:
+                break
+            if row["question"] in seen:
+                continue
             try:
                 rubric = json.loads(row["rubric"] or "[]")
             except (TypeError, ValueError):
