@@ -1,6 +1,6 @@
 # 心语经典库分类与数据质量
 
-> 当前版本：V9.3.0；数据库共 **4,347 篇**，13 个一级分类；
+> 当前版本：V9.3.0；数据库共 **4,350 篇**，13 个一级分类；
 > 其中 **3,706 篇** `verified=1`。
 > 内容结构调整见 `docs/CONTENT_CURATION.md`。
 
@@ -34,7 +34,7 @@
 2. **汉赋**：原有《归田赋》已归入经典散文；《子虚赋》《上林赋》《两都赋》等未入库。
 3. **魏晋南北朝**：原 7 篇已归入经典散文，缺三曹、陶谢、庾信等专集。
 4. **经部四书五经**：已有大学、中庸、孟子、论语、诗经；缺尚书、礼记、周易、春秋。
-5. **译文/注释**：3,706 篇正文已校勘，但译文仍为 0，注释仅约 500 篇；这是当前最大内容缺口。
+5. **译文/注释**：3,706 篇正文已校勘；新增 20 篇古文已有译文/注释草案（`draft`，未人工通过），其余译文仍缺。
 6. **人工复核**：300 篇译文/注释草案、200 道阅读题草案已建立流程，但必须由人复核。
 
 ## 三、本轮新增数据工具
@@ -47,7 +47,7 @@ python tools/curate_content.py --apply
 python tools/build_question_bank.py --apply --rebuild
 python tools/export_question_bank.py
 
-# 导出随安装包分发的种子（当前 3.45 MB）
+# 导出随安装包分发的种子（当前 3.53 MB）
 python tools/export_classics_seed.py
 
 # 300 篇译文/注释草案（AI，标记待复核）
@@ -67,7 +67,7 @@ python tools/review_translations.py --from-csv --apply
 
 ## 四、首启与性能
 
-- `resources/classics_seed.json` 3.45 MB，4,347 篇，随安装包分发；
+- `resources/classics_seed.json` 3.53 MB，4,350 篇，随安装包分发；
 - 空库首启导入时间待重新实测（种子从 9.45 MB 缩小到 3.45 MB）；第二次启动约 0.03 秒；
 - 旧库按 ID/标题合并，不重复膨胀；
 - 首次启动完成写入 `data/classics_seed_version`。
